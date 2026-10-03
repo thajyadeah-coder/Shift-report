@@ -43,29 +43,38 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const monday = d => { const x = new Date(d); x.setDate(x.getDate() - (x.getDay()+6)%7); x.setHours(0,0,0,0); return x; };
 const fmt = n => (Math.round(n*100)/100).toLocaleString('fr-FR');
+// Le taux est stocké en décimal (0.05) mais saisi et affiché en pourcentage (5 %)
+const pv = c => Math.round(Number(c||0)*1e6)/1e4;
+const pct = c => pv(c).toLocaleString('fr-FR') + ' %';
 const dayName = d => d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'});
 const dayShort = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
 let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '';
 
-async function authView(msg){
+async function authView(msg, mode){
   const {data:has} = await sb.rpc('has_users');
-  const first = has === false;
+  const first = has === false, reg = first || mode === 'signup';
   $('app').innerHTML = `<div class="card auth"><h1>Shift Report</h1>
-  <p style="color:var(--mute)">${first?'Première utilisation : crée le compte administrateur.':'Connecte-toi avec le compte donné par ton administrateur.'}</p>
-  ${first?'<input id="nm" placeholder="Nom complet">':''}
+  <p style="color:var(--mute)">${first?'Première utilisation : crée le compte administrateur.':reg?'Crée ton compte agent. Ton administrateur pourra ensuite régler ton taux de commission.':'Connecte-toi avec ton compte.'}</p>
+  ${reg?'<input id="nm" placeholder="Nom complet" autocomplete="name">':''}
   <input id="em" type="email" placeholder="Email" autocomplete="username">
-  <input id="pw" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="current-password">
-  <div class="row">${first?'<button class="p" onclick="signup()">Créer le compte administrateur</button>':'<button class="p" onclick="login()">Se connecter</button>'}</div>
-  <div class="msg" id="am">${esc(msg||'')}</div></div>`;
+  <input id="pw" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="${reg?'new-password':'current-password'}">
+  ${reg&&!first?'<input id="pw2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password">':''}
+  <div class="row">${first?'<button class="p" onclick="signup()">Créer le compte administrateur</button>':reg?'<button class="p" onclick="signup()">Créer mon compte</button>':'<button class="p" onclick="login()">Se connecter</button>'}</div>
+  ${first?'':`<p class="hint" style="margin-top:12px">${reg?'Déjà un compte ? <a href="#" onclick="authView(\'\',\'login\');return false">Se connecter</a>':'Pas encore de compte ? <a href="#" onclick="authView(\'\',\'signup\');return false">Créer un compte</a>'}</p>`}
+  <div class="msg" id="am">${msg||''}</div></div>`;
 }
 async function login(){
   const {error} = await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
   if(error) $('am').textContent = 'Connexion impossible : ' + error.message; else start();
 }
 async function signup(){
-  const {data,error} = await sb.auth.signUp({email:$('em').value.trim(),password:$('pw').value,options:{data:{full_name:$('nm').value.trim()}}});
-  if(error) return $('am').textContent = 'Inscription impossible : ' + error.message;
-  if(!data.session) $('am').innerHTML = '<span class="ok">Compte créé. Confirme ton email (ou désactive « Confirm email » dans Supabase), puis connecte-toi.</span>'; else start();
+  const nm=$('nm').value.trim(), em=$('em').value.trim(), pw=$('pw').value, am=$('am');
+  if(!nm||!em||pw.length<6) return am.textContent = 'Renseigne ton nom, ton email et un mot de passe de 6 caractères minimum.';
+  if($('pw2') && $('pw2').value !== pw) return am.textContent = 'Les deux mots de passe ne correspondent pas.';
+  const {data,error} = await sb.auth.signUp({email:em,password:pw,options:{data:{full_name:nm}}});
+  if(error) return am.textContent = 'Inscription impossible : ' + error.message;
+  if(data.user && data.user.identities && data.user.identities.length===0) return am.textContent = 'Cet email est déjà utilisé. Connecte-toi plutôt.';
+  if(!data.session) authView('<span class="ok">Compte créé. Confirme ton email via le lien reçu, puis connecte-toi.</span>', 'login'); else start();
 }
 async function logout(){ await sb.auth.signOut(); me = null; viewId = null; authView(); }
 
@@ -73,7 +82,7 @@ async function start(){
   const {data:{session}} = await sb.auth.getSession();
   if(!session) return authView();
   const {data,error} = await sb.from('profiles').select('*').eq('id',session.user.id).single();
-  if(error||!data) return authView('Profil introuvable : ' + (error?error.message:''));
+  if(error||!data) return authView(esc('Profil introuvable : ' + (error?error.message:'')));
   me = data; viewId = viewId || me.id; show();
 }
 
@@ -104,7 +113,7 @@ async function show(){
       const co = ca*p.commission, ar = co*AR_MULT; gCa+=ca; gCo+=co; gAr+=ar;
       return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||p.email)}</a></td>
       ${days.map(d=>{const r=u[iso(d)];return `<td>${r?fmt(r.ca)+(r.modelle?`<small>${esc(r.modelle)}</small>`:''):''}</td>`}).join('')}
-      <td><b>${fmt(ca)}</b></td><td>${p.commission}</td><td>${fmt(co)}</td><td>${fmt(ar)}</td></tr>`;
+      <td><b>${fmt(ca)}</b></td><td>${pct(p.commission)}</td><td>${fmt(co)}</td><td>${fmt(ar)}</td></tr>`;
     }).join('');
     recap = `<div class="card"><h2>Tous les rapports — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
     <p class="hint">Clique sur un nom pour ouvrir et modifier son rapport.</p><table>
@@ -112,12 +121,12 @@ async function show(){
     <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td><td>${fmt(gAr)}</td></tr></tfoot></table></div>`;
     team = `<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Taux</th><th>Rôle</th></tr>
     ${profiles.map(p=>`<tr><td>${esc(p.full_name||'(sans nom)')}</td><td>${esc(p.email)}</td>
-      <td><input type="number" step="0.01" min="0" style="width:80px" value="${p.commission}" onchange="upd('${p.id}',{commission:+this.value})"></td>
+      <td><input type="number" step="any" min="0" max="100" style="width:80px" value="${pv(p.commission)}" onchange="upd('${p.id}',{commission:(+this.value||0)/100})"> %</td>
       <td><select ${p.id===me.id?'disabled title="Tu ne peux pas changer ton propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
       <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`).join('')}</table>
     <h2 style="margin-top:18px">Créer un compte agent</h2><div class="row">
       <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 min.)">
-      <input id="ng_tx" type="number" step="0.01" min="0" value="0.05" style="width:80px" title="Taux de commission"><button class="p" onclick="createAgent()">Créer le compte</button></div>
+      <label class="row" style="gap:4px"><input id="ng_tx" type="number" step="any" min="0" max="100" value="5" style="width:80px" title="Taux de commission en %"> %</label><button class="p" onclick="createAgent()">Créer le compte</button></div>
     <div id="ng_msg" class="ok">${esc(notice)}</div></div>`;
     notice = '';
   }
@@ -130,13 +139,13 @@ async function show(){
     <span style="color:var(--mute)">${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>
   ${recap}
   <div class="card"><h2>Shift report — ${esc(vu.full_name||vu.email)}</h2>
-  <p class="hint">Note le total de la journée dans « CA » et le détail dans « Modelle » (ex. E250,C75, nom du modèle, OFF…).</p>
+  <p class="hint">Note le total de la journée dans « CA » et le détail dans « Modelle » (ex. E250,C75, nom du modèle, OFF…).${admin?' Le taux de commission se saisit en pourcentage (ex. 5, 7,5, 12) et est enregistré avec la semaine.':''}</p>
   <table><tr><th>Jour</th><th>CA</th><th>Modelle</th></tr>
   ${days.map(d=>{const k=iso(d),r=mine[k]||{};return `<tr><td style="text-transform:capitalize">${dayName(d)}</td>
     <td><input type="number" step="any" min="0" id="ca_${k}" value="${r.ca??''}" oninput="calc()"></td>
     <td><input class="t" id="mo_${k}" value="${esc(r.modelle||'')}" placeholder="Détail / modèle"></td></tr>`}).join('')}</table>
-  <div class="tot" data-rate="${vu.commission}">
-    <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span><b>${vu.commission}</b></div>
+  <div class="tot" data-rate="${pv(vu.commission)}">
+    <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span>${admin?`<label class="row" style="gap:4px"><input type="number" step="any" min="0" max="100" id="rate" value="${pv(vu.commission)}" oninput="calc()" style="width:90px" aria-label="Taux de commission en %"><b>%</b></label>`:`<b>${pct(vu.commission)}</b>`}</div>
     <div><span>Commission</span><b id="tco">0</b></div><div><span>Ar</span><b id="tar">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>${team}`;
   calc();
@@ -144,7 +153,7 @@ async function show(){
 
 function calc(){
   let ca=0; days.forEach(d=>{ ca += +$('ca_'+iso(d)).value||0; });
-  const r = +document.querySelector('.tot').dataset.rate;
+  const r = ($('rate') ? +$('rate').value||0 : +document.querySelector('.tot').dataset.rate) / 100;
   $('tca').textContent = fmt(ca); $('tco').textContent = fmt(ca*r); $('tar').textContent = fmt(ca*r*AR_MULT);
 }
 async function save(uid){
@@ -152,7 +161,12 @@ async function save(uid){
   days.forEach(d=>{const k=iso(d), ca=$('ca_'+k).value.trim(), mo=$('mo_'+k).value.trim();
     if(ca===''&&mo==='') del.push(k); else up.push({user_id:uid,day:k,ca:+ca||0,modelle:mo||null}); });
   let error = null;
-  if(up.length) ({error} = await sb.from('entries').upsert(up,{onConflict:'user_id,day'}));
+  if($('rate')){
+    const v = +$('rate').value;
+    if(!(v>=0 && v<=100)){ $('sm').className='msg'; $('sm').textContent='Le taux doit être un pourcentage entre 0 et 100.'; return; }
+    ({error} = await sb.from('profiles').update({commission:v/100}).eq('id',uid));
+  }
+  if(!error && up.length) ({error} = await sb.from('entries').upsert(up,{onConflict:'user_id,day'}));
   if(!error && del.length) ({error} = await sb.from('entries').delete().eq('user_id',uid).in('day',del));
   await show();
   $('sm').className = error?'msg':'ok'; $('sm').textContent = error?('Erreur : '+error.message):'Enregistré.';
@@ -162,8 +176,9 @@ async function upd(id,patch){
   if(error) alert('Erreur : '+error.message); show();
 }
 async function createAgent(){
-  const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value, tx=+$('ng_tx').value||0.05, m=$('ng_msg');
+  const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value, tx=($('ng_tx').value===''?5:+$('ng_tx').value)/100, m=$('ng_msg');
   m.className='msg';
+  if(!(tx>=0&&tx<=1)){ m.textContent='Le taux doit être un pourcentage entre 0 et 100.'; return; }
   if(!nm||!em||pw.length<6){ m.textContent='Renseigne le nom, l\'email et un mot de passe de 6 caractères minimum.'; return; }
   const {data,error} = await sb2.auth.signUp({email:em,password:pw,options:{data:{full_name:nm}}});
   if(error){ m.textContent='Création impossible : '+error.message; return; }
