@@ -46,6 +46,8 @@ const fmt = n => (Math.round(n*100)/100).toLocaleString('fr-FR');
 // Le taux est stocké en décimal (0.05) mais saisi et affiché en pourcentage (5 %)
 const pv = c => Math.round(Number(c||0)*1e6)/1e4;
 const pct = c => pv(c).toLocaleString('fr-FR') + ' %';
+// Liste déroulante du taux : 1 à 20 % (une ancienne valeur hors liste reste affichée pour ne pas être perdue)
+const rateOpts = v => { const l = [...Array(20)].map((_,i)=>i+1); if(v!=null && !l.includes(v)) l.push(v); return l.sort((a,b)=>a-b).map(n=>`<option value="${n}" ${n===v?'selected':''}>${n.toLocaleString('fr-FR')} %</option>`).join(''); };
 const dayName = d => d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'});
 const dayShort = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
 let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '';
@@ -121,12 +123,12 @@ async function show(){
     <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td><td>${fmt(gAr)}</td></tr></tfoot></table></div>`;
     team = `<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Taux</th><th>Rôle</th></tr>
     ${profiles.map(p=>`<tr><td>${esc(p.full_name||'(sans nom)')}</td><td>${esc(p.email)}</td>
-      <td><input type="number" step="any" min="0" max="100" style="width:80px" value="${pv(p.commission)}" onchange="upd('${p.id}',{commission:(+this.value||0)/100})"> %</td>
+      <td><select onchange="upd('${p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(p.commission))}</select></td>
       <td><select ${p.id===me.id?'disabled title="Tu ne peux pas changer ton propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
       <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`).join('')}</table>
     <h2 style="margin-top:18px">Créer un compte agent</h2><div class="row">
       <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 min.)">
-      <label class="row" style="gap:4px"><input id="ng_tx" type="number" step="any" min="0" max="100" value="5" style="width:80px" title="Taux de commission en %"> %</label><button class="p" onclick="createAgent()">Créer le compte</button></div>
+      <select id="ng_tx" title="Taux de commission" aria-label="Taux de commission">${rateOpts(5)}</select><button class="p" onclick="createAgent()">Créer le compte</button></div>
     <div id="ng_msg" class="ok">${esc(notice)}</div></div>`;
     notice = '';
   }
@@ -139,13 +141,13 @@ async function show(){
     <span style="color:var(--mute)">${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>
   ${recap}
   <div class="card"><h2>Shift report — ${esc(vu.full_name||vu.email)}</h2>
-  <p class="hint">Note le total de la journée dans « CA » et le détail dans « Modelle » (ex. E250,C75, nom du modèle, OFF…).${admin?' Le taux de commission se saisit en pourcentage (ex. 5, 7,5, 12) et est enregistré avec la semaine.':''}</p>
+  <p class="hint">Note le total de la journée dans « CA » et le détail dans « Modelle » (ex. E250,C75, nom du modèle, OFF…). Choisis le taux de commission (1 à 20 %) dans la liste ; il est enregistré avec la semaine.</p>
   <table><tr><th>Jour</th><th>CA</th><th>Modelle</th></tr>
   ${days.map(d=>{const k=iso(d),r=mine[k]||{};return `<tr><td style="text-transform:capitalize">${dayName(d)}</td>
     <td><input type="number" step="any" min="0" id="ca_${k}" value="${r.ca??''}" oninput="calc()"></td>
     <td><input class="t" id="mo_${k}" value="${esc(r.modelle||'')}" placeholder="Détail / modèle"></td></tr>`}).join('')}</table>
-  <div class="tot" data-rate="${pv(vu.commission)}">
-    <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span>${admin?`<label class="row" style="gap:4px"><input type="number" step="any" min="0" max="100" id="rate" value="${pv(vu.commission)}" oninput="calc()" style="width:90px" aria-label="Taux de commission en %"><b>%</b></label>`:`<b>${pct(vu.commission)}</b>`}</div>
+  <div class="tot">
+    <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span><select id="rate" onchange="calc()" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select></div>
     <div><span>Commission</span><b id="tco">0</b></div><div><span>Ar</span><b id="tar">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>${team}`;
   calc();
@@ -153,7 +155,7 @@ async function show(){
 
 function calc(){
   let ca=0; days.forEach(d=>{ ca += +$('ca_'+iso(d)).value||0; });
-  const r = ($('rate') ? +$('rate').value||0 : +document.querySelector('.tot').dataset.rate) / 100;
+  const r = (+$('rate').value||0) / 100;
   $('tca').textContent = fmt(ca); $('tco').textContent = fmt(ca*r); $('tar').textContent = fmt(ca*r*AR_MULT);
 }
 async function save(uid){
@@ -161,13 +163,11 @@ async function save(uid){
   days.forEach(d=>{const k=iso(d), ca=$('ca_'+k).value.trim(), mo=$('mo_'+k).value.trim();
     if(ca===''&&mo==='') del.push(k); else up.push({user_id:uid,day:k,ca:+ca||0,modelle:mo||null}); });
   let error = null;
-  if($('rate')){
-    const v = +$('rate').value;
-    if(!(v>=0 && v<=100)){ $('sm').className='msg'; $('sm').textContent='Le taux doit être un pourcentage entre 0 et 100.'; return; }
-    ({error} = await sb.from('profiles').update({commission:v/100}).eq('id',uid));
-  }
-  if(!error && up.length) ({error} = await sb.from('entries').upsert(up,{onConflict:'user_id,day'}));
+  const v = +$('rate').value;
+  if(!(v>0 && v<=100)){ $('sm').className='msg'; $('sm').textContent='Choisis un taux de commission dans la liste.'; return; }
+  if(up.length) ({error} = await sb.from('entries').upsert(up,{onConflict:'user_id,day'}));
   if(!error && del.length) ({error} = await sb.from('entries').delete().eq('user_id',uid).in('day',del));
+  if(!error) ({error} = await sb.from('profiles').update({commission:v/100}).eq('id',uid));
   await show();
   $('sm').className = error?'msg':'ok'; $('sm').textContent = error?('Erreur : '+error.message):'Enregistré.';
 }
@@ -176,7 +176,7 @@ async function upd(id,patch){
   if(error) alert('Erreur : '+error.message); show();
 }
 async function createAgent(){
-  const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value, tx=($('ng_tx').value===''?5:+$('ng_tx').value)/100, m=$('ng_msg');
+  const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value, tx=(+$('ng_tx').value||5)/100, m=$('ng_msg');
   m.className='msg';
   if(!(tx>=0&&tx<=1)){ m.textContent='Le taux doit être un pourcentage entre 0 et 100.'; return; }
   if(!nm||!em||pw.length<6){ m.textContent='Renseigne le nom, l\'email et un mot de passe de 6 caractères minimum.'; return; }
