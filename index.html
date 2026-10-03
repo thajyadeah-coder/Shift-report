@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shift Report</title>
+<style>
+:root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--card:#fff;--err:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--card:#1c242c;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:1000px;margin:0 auto;padding:16px}
+header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:12px}
+h1{font-size:20px;margin:0}h2{font-size:16px;margin:0 0 10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:8px;padding:14px;margin-bottom:14px;overflow-x:auto}
+input,select,button{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:6px;background:var(--card);color:var(--ink)}
+input[type=number]{width:110px}input.t{width:100%;min-width:180px}
+button{cursor:pointer}button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
+th{color:var(--mute);font-weight:600}tfoot td{font-weight:700}
+td small{display:block;color:var(--mute);white-space:normal;max-width:130px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.tot{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}.tot div span{display:block;color:var(--mute);font-size:13px}.tot b{font-size:18px}
+.msg{color:var(--err);margin-top:8px}.ok{color:var(--acc);margin-top:8px}.hint{color:var(--mute);font-size:13px;margin:0 0 10px}
+.auth{max-width:340px;margin:8vh auto}.auth input{width:100%;margin-bottom:8px}
+</style>
+</head>
+<body>
+<main id="app"></main>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script>
+// ===== À MODIFIER =====
+const SUPABASE_URL = 'https://gnhvvhjnfsetopbekqcp.supabase.co';
+const SUPABASE_KEY = 'sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
+const AR_MULT = 3900;   // Ar = Commission x 3900 (comme dans ton Excel)
+// ======================
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+// 2e client sans session : sert uniquement à créer le compte d'un agent sans déconnecter l'admin
+const sb2 = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'sr-tmp'}});
+const $ = id => document.getElementById(id);
+const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const monday = d => { const x = new Date(d); x.setDate(x.getDate() - (x.getDay()+6)%7); x.setHours(0,0,0,0); return x; };
+const fmt = n => (Math.round(n*100)/100).toLocaleString('fr-FR');
+const dayName = d => d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'});
+const dayShort = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
+let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '';
+
+async function authView(msg){
+  const {data:has} = await sb.rpc('has_users');
+  const first = has === false;
+  $('app').innerHTML = `<div class="card auth"><h1>Shift Report</h1>
+  <p style="color:var(--mute)">${first?'Première utilisation : crée le compte administrateur.':'Connecte-toi avec le compte donné par ton administrateur.'}</p>
+  ${first?'<input id="nm" placeholder="Nom complet">':''}
+  <input id="em" type="email" placeholder="Email" autocomplete="username">
+  <input id="pw" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="current-password">
+  <div class="row">${first?'<button class="p" onclick="signup()">Créer le compte administrateur</button>':'<button class="p" onclick="login()">Se connecter</button>'}</div>
+  <div class="msg" id="am">${esc(msg||'')}</div></div>`;
+}
+async function login(){
+  const {error} = await sb.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+  if(error) $('am').textContent = 'Connexion impossible : ' + error.message; else start();
+}
+async function signup(){
+  const {data,error} = await sb.auth.signUp({email:$('em').value.trim(),password:$('pw').value,options:{data:{full_name:$('nm').value.trim()}}});
+  if(error) return $('am').textContent = 'Inscription impossible : ' + error.message;
+  if(!data.session) $('am').innerHTML = '<span class="ok">Compte créé. Confirme ton email (ou désactive « Confirm email » dans Supabase), puis connecte-toi.</span>'; else start();
+}
+async function logout(){ await sb.auth.signOut(); me = null; viewId = null; authView(); }
+
+async function start(){
+  const {data:{session}} = await sb.auth.getSession();
+  if(!session) return authView();
+  const {data,error} = await sb.from('profiles').select('*').eq('id',session.user.id).single();
+  if(error||!data) return authView('Profil introuvable : ' + (error?error.message:''));
+  me = data; viewId = viewId || me.id; show();
+}
+
+function shift(n){ weekStart.setDate(weekStart.getDate()+n*7); show(); }
+function pickWeek(v){ if(v){ weekStart = monday(new Date(v+'T00:00:00')); show(); } }
+function pick(id){ viewId = id; show(); }
+
+async function show(){
+  days = [...Array(7)].map((_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});
+  const from = iso(days[0]), to = iso(days[6]), admin = me.role === 'admin';
+  let profiles = [me], all = [];
+  if(admin){
+    const [p,e] = await Promise.all([sb.from('profiles').select('*').order('full_name'), sb.from('entries').select('*').gte('day',from).lte('day',to)]);
+    profiles = p.data || [me]; all = e.data || [];
+  } else {
+    const e = await sb.from('entries').select('*').eq('user_id',me.id).gte('day',from).lte('day',to); all = e.data || [];
+  }
+  if(!admin || !profiles.find(p=>p.id===viewId)) viewId = me.id;
+  const vu = profiles.find(p=>p.id===viewId) || me;
+  const byU = {}; all.forEach(r=>{ (byU[r.user_id] = byU[r.user_id] || {})[r.day] = r; });
+  const mine = byU[vu.id] || {};
+
+  let recap = '', team = '';
+  if(admin){
+    let gCa=0, gCo=0, gAr=0;
+    const body = profiles.map(p=>{
+      const u = byU[p.id] || {}; const ca = days.reduce((s,d)=>s+Number((u[iso(d)]||{}).ca||0),0);
+      const co = ca*p.commission, ar = co*AR_MULT; gCa+=ca; gCo+=co; gAr+=ar;
+      return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||p.email)}</a></td>
+      ${days.map(d=>{const r=u[iso(d)];return `<td>${r?fmt(r.ca)+(r.modelle?`<small>${esc(r.modelle)}</small>`:''):''}</td>`}).join('')}
+      <td><b>${fmt(ca)}</b></td><td>${p.commission}</td><td>${fmt(co)}</td><td>${fmt(ar)}</td></tr>`;
+    }).join('');
+    recap = `<div class="card"><h2>Tous les rapports — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
+    <p class="hint">Clique sur un nom pour ouvrir et modifier son rapport.</p><table>
+    <tr><th>Agent</th>${days.map(d=>`<th>${dayShort(d)}</th>`).join('')}<th>CA</th><th>Taux</th><th>Commission</th><th>Ar</th></tr>${body}
+    <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td><td>${fmt(gAr)}</td></tr></tfoot></table></div>`;
+    team = `<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Taux</th><th>Rôle</th></tr>
+    ${profiles.map(p=>`<tr><td>${esc(p.full_name||'(sans nom)')}</td><td>${esc(p.email)}</td>
+      <td><input type="number" step="0.01" min="0" style="width:80px" value="${p.commission}" onchange="upd('${p.id}',{commission:+this.value})"></td>
+      <td><select ${p.id===me.id?'disabled title="Tu ne peux pas changer ton propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
+      <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`).join('')}</table>
+    <h2 style="margin-top:18px">Créer un compte agent</h2><div class="row">
+      <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 min.)">
+      <input id="ng_tx" type="number" step="0.01" min="0" value="0.05" style="width:80px" title="Taux de commission"><button class="p" onclick="createAgent()">Créer le compte</button></div>
+    <div id="ng_msg" class="ok">${esc(notice)}</div></div>`;
+    notice = '';
+  }
+
+  $('app').innerHTML = `<header><h1>Shift Report</h1><div class="row"><span>${esc(me.full_name||me.email)} (${me.role})</span><button onclick="logout()">Déconnexion</button></div></header>
+  <div class="card"><div class="row">
+    <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
+    <input type="date" value="${from}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
+    <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
+    <span style="color:var(--mute)">${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>
+  ${recap}
+  <div class="card"><h2>Shift report — ${esc(vu.full_name||vu.email)}</h2>
+  <p class="hint">Note le total de la journée dans « CA » et le détail dans « Modelle » (ex. E250,C75, nom du modèle, OFF…).</p>
+  <table><tr><th>Jour</th><th>CA</th><th>Modelle</th></tr>
+  ${days.map(d=>{const k=iso(d),r=mine[k]||{};return `<tr><td style="text-transform:capitalize">${dayName(d)}</td>
+    <td><input type="number" step="any" min="0" id="ca_${k}" value="${r.ca??''}" oninput="calc()"></td>
+    <td><input class="t" id="mo_${k}" value="${esc(r.modelle||'')}" placeholder="Détail / modèle"></td></tr>`}).join('')}</table>
+  <div class="tot" data-rate="${vu.commission}">
+    <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span><b>${vu.commission}</b></div>
+    <div><span>Commission</span><b id="tco">0</b></div><div><span>Ar</span><b id="tar">0</b></div></div>
+  <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>${team}`;
+  calc();
+}
+
+function calc(){
+  let ca=0; days.forEach(d=>{ ca += +$('ca_'+iso(d)).value||0; });
+  const r = +document.querySelector('.tot').dataset.rate;
+  $('tca').textContent = fmt(ca); $('tco').textContent = fmt(ca*r); $('tar').textContent = fmt(ca*r*AR_MULT);
+}
+async function save(uid){
+  const up=[], del=[];
+  days.forEach(d=>{const k=iso(d), ca=$('ca_'+k).value.trim(), mo=$('mo_'+k).value.trim();
+    if(ca===''&&mo==='') del.push(k); else up.push({user_id:uid,day:k,ca:+ca||0,modelle:mo||null}); });
+  let error = null;
+  if(up.length) ({error} = await sb.from('entries').upsert(up,{onConflict:'user_id,day'}));
+  if(!error && del.length) ({error} = await sb.from('entries').delete().eq('user_id',uid).in('day',del));
+  await show();
+  $('sm').className = error?'msg':'ok'; $('sm').textContent = error?('Erreur : '+error.message):'Enregistré.';
+}
+async function upd(id,patch){
+  const {error} = await sb.from('profiles').update(patch).eq('id',id);
+  if(error) alert('Erreur : '+error.message); show();
+}
+async function createAgent(){
+  const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value, tx=+$('ng_tx').value||0.05, m=$('ng_msg');
+  m.className='msg';
+  if(!nm||!em||pw.length<6){ m.textContent='Renseigne le nom, l\'email et un mot de passe de 6 caractères minimum.'; return; }
+  const {data,error} = await sb2.auth.signUp({email:em,password:pw,options:{data:{full_name:nm}}});
+  if(error){ m.textContent='Création impossible : '+error.message; return; }
+  if(!data.user || (data.user.identities && data.user.identities.length===0)){ m.textContent='Cet email est déjà utilisé.'; return; }
+  await sb.from('profiles').update({commission:tx}).eq('id',data.user.id);
+  notice = 'Compte créé pour '+nm+'. Il se connecte avec cet email et ce mot de passe.' + (data.session?'':' Attention : la confirmation par email est active dans Supabase, l\'agent doit confirmer son email (ou désactive « Confirm email »).');
+  show();
+}
+start();
+</script>
+</body>
+</html>
