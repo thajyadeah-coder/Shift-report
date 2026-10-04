@@ -591,7 +591,7 @@ async function show(){
     return;
   }
 
-  const objD=(t==='goals'&&objDay)?objDay:iso(new Date());
+  const objD=((t==='goals'||t==='perf')&&objDay)?objDay:iso(new Date());
   const [md,tr]=await Promise.all([
     sb.from('models').select('*').order('name'),
     admin ? allEntries(objD,objD).catch(()=>[]) : Promise.resolve([])
@@ -615,7 +615,7 @@ async function show(){
     }
   }
   if(!admin || !profiles.find(p=>p.id===viewId)) viewId=me.id;
-  if(admin&&t==='agent'){
+  if(admin&&(t==='agent'||t==='perf')){
     const ags=profiles.filter(p=>p.role!=='admin');
     if(!ags.find(p=>p.id===viewId)&&ags[0]) viewId=ags[0].id;
   }
@@ -645,7 +645,8 @@ async function show(){
     const c=await sb.from('agent_credentials').select('user_id,password');
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
-  let dash='', team='', access='';
+  let dash='', team='', access='', perf='';
+  if(admin && t==='perf') perf=perfView(profiles,rows,goals,tr,objD,vu);
   if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr)+dashCard(profiles,rows,hStart);
 
   let agent='';
@@ -711,7 +712,7 @@ async function show(){
     <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?dayBadge(o.day,o.tTot,o.dayGoal):'—'}</td><td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['team','👥 Équipe'],['access','🔑 Accès']]
+  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['perf','📈 CA par modèle'],['team','👥 Équipe'],['access','🔑 Accès']]
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
 
   const weekBar=(t==='team'||t==='access')?'':`<div class="card"><div class="row">
@@ -740,10 +741,75 @@ async function show(){
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}${weekBar}${dash}${agent}${report}${goalsTab}${team}${access}`;
+  ${nav}${weekBar}${dash}${agent}${report}${goalsTab}${perf}${team}${access}`;
   if(t==='reports'&&!admin) calc();
 }
 
+// ---------- Suivi du CA par agent et par modèle (admin) ----------
+function dayPicker(day){
+  const isToday=day===iso(new Date());
+  return `<div class="row" style="margin-bottom:10px">
+    <button onclick="shiftObjDay(-1)" aria-label="Jour précédent">◀</button>
+    <input type="date" value="${day}" onchange="pickObjDay(this.value)" aria-label="Date du suivi">
+    <button onclick="shiftObjDay(1)" aria-label="Jour suivant">▶</button>
+    <button onclick="pickObjDay('')" ${isToday?'disabled':''}>Aujourd'hui</button>
+    <span style="color:var(--mute)">${isToday?"Aujourd'hui · ":''}<b style="text-transform:capitalize">${dayName(new Date(day+'T00:00:00'))}</b></span></div>`;
+}
+function pickPerf(id){ viewId=id; show(); }
+function perfView(profiles,rows,goals,dayRows,day,vu){
+  const agents=profiles.filter(p=>p.role!=='admin')
+    .sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr'));
+  if(!agents.length) return '<div class="card"><p class="hint">Aucun agent pour le moment.</p></div>';
+  const ids=new Set(agents.map(a=>a.id)), from=iso(days[0]), to=iso(days[6]);
+  const isToday=day===iso(new Date()), lbl=isToday?"d'aujourd'hui":'du '+frDate(day);
+  // colonnes : modèles officiels (liste de l'admin) puis, le cas échéant, noms hors liste présents dans les données
+  const cols=new Map();
+  (goals||[]).forEach(g=>cols.set(mkey(g.name),{n:String(g.name).trim(),goal:Number(g.daily_goal||0)}));
+  const addOff=r=>{ const k=mkey(r.model_name); if(!cols.has(k)) cols.set(k,{n:String(r.model_name).trim(),goal:0,off:true}); };
+  dayRows.forEach(r=>{ if(ids.has(r.user_id)) addOff(r); });
+  rows.forEach(r=>{ if(r.user_id===vu.id && r.day>=from && r.day<=to) addOff(r); });
+  const list=[...cols.entries()];
+  const dash0=`<span style="color:var(--mute)">—</span>`;
+
+  // 1) Jour choisi : agents × modèles
+  const m={}, colT={}, rowT={};
+  dayRows.forEach(r=>{
+    if(!ids.has(r.user_id)) return;
+    const k=mkey(r.model_name), ca=Number(r.ca||0);
+    (m[r.user_id]=m[r.user_id]||{})[k]=(m[r.user_id][k]||0)+ca;
+    colT[k]=(colT[k]||0)+ca; rowT[r.user_id]=(rowT[r.user_id]||0)+ca;
+  });
+  const grand=Object.values(rowT).reduce((s,x)=>s+x,0);
+  const goalSum=list.reduce((s,[,c])=>s+c.goal,0);
+  const ach=(v,g)=>g>0?`<span class="${v>=g?'up':''}">${Math.round(v/g*100)} %</span>`:'—';
+  const head=`<tr><th>Agent</th>${list.map(([,c])=>`<th>${esc(c.n)}${c.off?'<small>hors liste</small>':''}</th>`).join('')}<th>Total</th></tr>`;
+  const body=agents.map(a=>`<tr><td><a href="#" onclick="pickPerf('${a.id}');return false">${esc(a.full_name||a.email)}</a></td>
+    ${list.map(([k])=>`<td>${m[a.id]&&m[a.id][k]?fmt(m[a.id][k]):dash0}</td>`).join('')}<td><b>${fmt(rowT[a.id]||0)}</b></td></tr>`).join('');
+  const foot=`<tfoot><tr><td>Total agence</td>${list.map(([k])=>`<td>${fmt(colT[k]||0)}</td>`).join('')}<td>${fmt(grand)}</td></tr>
+    <tr style="font-weight:400"><td>Objectif / jour</td>${list.map(([,c])=>`<td>${c.goal>0?fmt(c.goal):'—'}</td>`).join('')}<td>${goalSum>0?fmt(goalSum):'—'}</td></tr>
+    <tr style="font-weight:400"><td>Atteinte</td>${list.map(([k,c])=>`<td>${ach(colT[k]||0,c.goal)}</td>`).join('')}<td>${ach(grand,goalSum)}</td></tr></tfoot>`;
+  const card1=`<div class="card"><h2>CA ${lbl} — par agent et par modèle</h2>${dayPicker(day)}
+    <p class="hint">Chaque case est le CA saisi par l'agent pour ce modèle à cette date. Cliquez sur un agent pour voir son détail de la semaine ci-dessous. La ligne « Atteinte » compare le total du modèle à son objectif journalier.</p>
+    <table>${head}${body}${foot}</table></div>`;
+
+  // 2) Agent choisi : CA journalier par modèle sur la semaine affichée
+  const mine={}, dT={}, mT={};
+  rows.forEach(r=>{
+    if(r.user_id!==vu.id || r.day<from || r.day>to) return;
+    const k=mkey(r.model_name), ca=Number(r.ca||0);
+    (mine[k]=mine[k]||{})[r.day]=(mine[k][r.day]||0)+ca;
+    dT[r.day]=(dT[r.day]||0)+ca; mT[k]=(mT[k]||0)+ca;
+  });
+  const wTot=Object.values(dT).reduce((s,x)=>s+x,0);
+  const dh=days.map(d=>`<th${iso(d)===day?' style="color:var(--acc)"':''}>${dayShort(d)}</th>`).join('');
+  const drows=list.map(([k,c])=>`<tr><td>${esc(c.n)}</td>${days.map(d=>{ const v=(mine[k]||{})[iso(d)]; return `<td${iso(d)===day?' style="background:rgba(31,111,92,.08)"':''}>${v?fmt(v):dash0}</td>`; }).join('')}<td><b>${mT[k]?fmt(mT[k]):'—'}</b></td></tr>`).join('');
+  const dfoot=`<tfoot><tr><td>Total du jour</td>${days.map(d=>`<td>${fmt(dT[iso(d)]||0)}</td>`).join('')}<td>${fmt(wTot)}</td></tr></tfoot>`;
+  const card2=`<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">CA journalier par modèle — ${esc(vu.full_name||vu.email)}</h2>
+    <select onchange="pickPerf(this.value)" aria-label="Choisir un agent">${agents.map(a=>`<option value="${a.id}" ${a.id===vu.id?'selected':''}>${esc(a.full_name||a.email)}</option>`).join('')}</select></div>
+    <p class="hint">Semaine du ${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')} ; la colonne de la date choisie est surlignée. Changez de semaine avec la barre du haut.</p>
+    ${list.length?`<table><tr><th>Modèle</th>${dh}<th>Total</th></tr>${drows}${dfoot}</table>`:'<p class="hint">Aucun modèle pour le moment.</p>'}</div>`;
+  return card1+card2;
+}
 function statsCard(vu,rows,hStart){
   const weeks=weekSeries(rows,hStart);
   const daily={};
@@ -879,7 +945,7 @@ async function createAgent(){
 // Actualisation automatique (suivi des objectifs en quasi temps réel)
 setInterval(()=>{
   const a=document.activeElement;
-  if(me && me.role==='admin' && (tab==='dash'||tab==='goals') && !recovering && !(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) show();
+  if(me && me.role==='admin' && (tab==='dash'||tab==='goals'||tab==='perf') && !recovering && !(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) show();
 },30000);
 
 start();
