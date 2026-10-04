@@ -21,6 +21,7 @@ table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;
 th{color:var(--mute);font-weight:600}tfoot td{font-weight:700}
 td small{display:block;color:var(--mute);white-space:normal;max-width:130px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--mute)}.sw input{width:auto;margin:0}
 .tot{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}.tot div span{display:block;color:var(--mute);font-size:13px}.tot b{font-size:18px}
 .msg{color:var(--err);margin-top:8px}.ok{color:var(--acc);margin-top:8px}.hint{color:var(--mute);font-size:13px;margin:0 0 10px}
 .auth{max-width:340px;margin:8vh auto}.auth input{width:100%;margin-bottom:8px}
@@ -82,6 +83,12 @@ async function mmApi(method, q, body){
   if(error) throw new Error(error.message);
   return mmRow(data);
 }
+// Affichage des montants en Ar : option activable / désactivable (préférence d'affichage mémorisée sur l'appareil)
+let showAr = localStorage.getItem('sr-show-ar') !== '0';
+function toggleAr(on){ showAr = on; localStorage.setItem('sr-show-ar', on?'1':'0'); show(); }
+const arH = () => showAr ? '<th>Ar</th>' : '';
+const arC = v => showAr ? `<td>${fmt(v)}</td>` : '';
+const arS = v => showAr ? `<span>${fmt(v)} Ar</span>` : '';
 const greet = () => new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
 let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '', page = 'report';
 function setPage(p){ page = p; window.scrollTo(0,0); show(); }
@@ -130,7 +137,7 @@ function topBar(){
   const nav = me.role !== 'admin' ? '' : page === 'stats'
     ? `<button onclick="setPage('report')">← Retour aux rapports</button>`
     : `<button class="p" onclick="setPage('stats')">Statistiques globales</button>`;
-  return `<header><h1>Shift Report${page==='stats'?' — Statistiques':''}</h1><div class="row">${nav}<span>${esc(me.full_name||me.email)} (${me.role})</span><button onclick="logout()">Déconnexion</button></div></header>`;
+  return `<header><h1>Shift Report${page==='stats'?' — Statistiques':''}</h1><div class="row">${nav}<label class="sw"><input type="checkbox" ${showAr?'checked':''} onchange="toggleAr(this.checked)"> Afficher Ar</label><span>${esc(me.full_name||me.email)} (${me.role})</span><button onclick="logout()">Déconnexion</button></div></header>`;
 }
 function weekNav(){
   return `<div class="card"><div class="row">
@@ -172,12 +179,12 @@ async function show(){
       const co = ca*p.commission, ar = co*AR_MULT; gCa+=ca; gCo+=co; gAr+=ar;
       return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||p.email)}</a></td>
       ${days.map(d=>{const r=u[iso(d)];return `<td>${r?fmt(r.ca)+(r.modelle?`<small>${esc(r.modelle)}</small>`:''):''}</td>`}).join('')}
-      <td><b>${fmt(ca)}</b></td><td>${pct(p.commission)}</td><td>${fmt(co)}</td><td>${fmt(ar)}</td></tr>`;
+      <td><b>${fmt(ca)}</b></td><td>${pct(p.commission)}</td><td>${fmt(co)}</td>${arC(ar)}</tr>`;
     }).join('');
     recap = `<div class="card"><h2>Tous les rapports — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
     <p class="hint">Clique sur un nom pour ouvrir et modifier son rapport.</p><table>
-    <tr><th>Agent</th>${days.map(d=>`<th>${dayShort(d)}</th>`).join('')}<th>CA</th><th>Taux</th><th>Commission</th><th>Ar</th></tr>${body}
-    <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td><td>${fmt(gAr)}</td></tr></tfoot></table></div>`;
+    <tr><th>Agent</th>${days.map(d=>`<th>${dayShort(d)}</th>`).join('')}<th>CA</th><th>Taux</th><th>Commission</th>${arH()}</tr>${body}
+    <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td>${arC(gAr)}</tr></tfoot></table></div>`;
     team = `<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Mobile Money</th><th>Taux</th><th>Rôle</th></tr>
     ${profiles.map(p=>{const m=mmBy[p.id];return `<tr><td>${esc(p.full_name||'(sans nom)')}</td><td>${esc(p.email)}</td>
       <td>${m&&m.number?esc(m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">—</span>'}</td>
@@ -202,7 +209,7 @@ async function show(){
     <td><input class="t" id="mo_${k}" value="${esc(r.modelle||'')}" placeholder="Détail / modèle"></td></tr>`}).join('')}</table>
   <div class="tot">
     <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span><select id="rate" onchange="calc()" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select></div>
-    <div><span>Commission</span><b id="tco">0</b></div><div><span>Ar</span><b id="tar">0</b></div></div>
+    <div><span>Commission</span><b id="tco">0</b></div>${showAr?'<div><span>Ar</span><b id="tar">0</b></div>':''}</div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
   ${statsCard(vu, hist.data||[], hStart)}
   ${mmCard(vu, mmOne)}${team}`;
@@ -233,7 +240,7 @@ function statsCard(vu, rows, hStart){
     <div><span>Cette semaine vs précédente</span><b>${evo===null?'—':(evo>0?'+':'')+evo+' %'}</b></div>
     <div><span>Meilleur jour</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
     <div><span>Jours travaillés</span><b>${worked}</b></div>
-    <div><span>Commission estimée</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>
+    <div><span>Commission estimée</span><b>${fmt(co)}</b>${arS(co*AR_MULT)}</div>
   </div>
   <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="CA par semaine sur ${STAT_WEEKS} semaines">
     <line class="grid" x1="${pl}" x2="${W-pr}" y1="${pt+ih}" y2="${pt+ih}"></line>${bars}</svg></div>`;
@@ -305,21 +312,21 @@ async function showStats(){
   const wBestDay = daily.reduce((b,d)=>d.v>b.v?d:b, {v:0});
   const name = s => `<a href="#" onclick="pick('${s.p.id}');return false">${esc(s.p.full_name||s.p.email)}</a>`;
   const wRows = [...list].sort((a,b)=>b.wCa-a.wCa).map((s,i)=>`<tr><td>${i+1}</td><td>${name(s)}</td><td><b>${fmt(s.wCa)}</b></td>
-    <td>${meter(wCa?s.wCa/wCa*100:0)}</td><td>${s.wDays}</td><td>${pct(s.p.commission)}</td><td>${fmt(s.wCa*s.p.commission)}</td>
-    <td>${fmt(s.wCa*s.p.commission*AR_MULT)}</td><td>${evoHtml(s.wCa,s.pCa)}</td></tr>`).join('');
+    <td>${meter(wCa?s.wCa/wCa*100:0)}</td><td>${s.wDays}</td><td><select onchange="upd('${s.p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission de ${esc(s.p.full_name||s.p.email)}">${rateOpts(pv(s.p.commission))}</select></td><td>${fmt(s.wCa*s.p.commission)}</td>
+    ${arC(s.wCa*s.p.commission*AR_MULT)}<td>${evoHtml(s.wCa,s.pCa)}</td></tr>`).join('');
   // Général
   const gCa = sum(s=>s.ca), gCo = sum(s=>s.ca*s.p.commission), gDays = sum(s=>s.days);
   const gRows = [...list].sort((a,b)=>b.ca-a.ca).map((s,i)=>`<tr><td>${i+1}</td><td>${name(s)}</td><td><b>${fmt(s.ca)}</b></td>
     <td>${meter(gCa?s.ca/gCa*100:0)}</td><td>${s.weeks.size}</td><td>${fmt(s.weeks.size?s.ca/s.weeks.size:0)}</td>
     <td>${s.best>0?fmt(s.best)+`<small>${dShort(s.bestDay)}</small>`:'—'}</td><td>${dShort(s.last)}</td>
-    <td>${fmt(s.ca*s.p.commission)}</td><td>${fmt(s.ca*s.p.commission*AR_MULT)}</td></tr>`).join('');
+    <td>${fmt(s.ca*s.p.commission)}</td>${arC(s.ca*s.p.commission*AR_MULT)}</tr>`).join('');
 
   $('app').innerHTML = `${topBar()}${weekNav()}
   <div class="card"><h2>Tableau de bord hebdomadaire — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
-    <p class="hint">Performance de toute l'équipe sur la semaine sélectionnée, comparée à la semaine précédente.</p>
+    <p class="hint">Performance de toute l'équipe sur la semaine sélectionnée, comparée à la semaine précédente. Le taux de chaque agent reste modifiable ici à tout moment.</p>
     <div class="tiles">
       <div><span>CA de l'équipe</span><b>${fmt(wCa)}</b><span>${evoHtml(wCa,wPrev)} vs sem. préc.</span></div>
-      <div><span>Commissions</span><b>${fmt(wCo)}</b><span>${fmt(wCo*AR_MULT)} Ar</span></div>
+      <div><span>Commissions</span><b>${fmt(wCo)}</b>${arS(wCo*AR_MULT)}</div>
       <div><span>Agents actifs</span><b>${wActive.length} / ${list.length}</b></div>
       <div><span>Moyenne / agent actif</span><b>${fmt(wActive.length?wCa/wActive.length:0)}</b></div>
       <div><span>Meilleur agent</span><b>${wTop&&wTop.wCa>0?fmt(wTop.wCa):'—'}</b><span>${wTop&&wTop.wCa>0?esc(wTop.p.full_name||wTop.p.email):''}</span></div>
@@ -327,15 +334,15 @@ async function showStats(){
     </div>
     ${barChart(daily,'CA de l\'équipe par jour sur la semaine')}
     <p class="sec">Classement de la semaine</p>
-    <table><tr><th>#</th><th>Agent</th><th>CA</th><th>Part</th><th>Jours</th><th>Taux</th><th>Commission</th><th>Ar</th><th>Évolution</th></tr>${wRows}
-    <tfoot><tr><td></td><td>Total</td><td>${fmt(wCa)}</td><td></td><td>${sum(s=>s.wDays)}</td><td></td><td>${fmt(wCo)}</td><td>${fmt(wCo*AR_MULT)}</td><td>${evoHtml(wCa,wPrev)}</td></tr></tfoot></table>
+    <table><tr><th>#</th><th>Agent</th><th>CA</th><th>Part</th><th>Jours</th><th>Taux</th><th>Commission</th>${arH()}<th>Évolution</th></tr>${wRows}
+    <tfoot><tr><td></td><td>Total</td><td>${fmt(wCa)}</td><td></td><td>${sum(s=>s.wDays)}</td><td></td><td>${fmt(wCo)}</td>${arC(wCo*AR_MULT)}<td>${evoHtml(wCa,wPrev)}</td></tr></tfoot></table>
   </div>
   <div class="card"><h2>Tableau de bord général</h2>
     <p class="hint">Cumul de tous les rapports enregistrés depuis le début. Les commissions sont calculées avec le taux actuel de chaque agent.</p>
     <div class="tiles">
       <div><span>Agents inscrits</span><b>${list.length}</b></div>
       <div><span>CA total</span><b>${fmt(gCa)}</b></div>
-      <div><span>Commissions totales</span><b>${fmt(gCo)}</b><span>${fmt(gCo*AR_MULT)} Ar</span></div>
+      <div><span>Commissions totales</span><b>${fmt(gCo)}</b>${arS(gCo*AR_MULT)}</div>
       <div><span>Moyenne / semaine</span><b>${fmt(allWeeks.size?gCa/allWeeks.size:0)}</b><span>${allWeeks.size} semaine(s) active(s)</span></div>
       <div><span>Jours travaillés</span><b>${gDays}</b></div>
       <div><span>Premier rapport</span><b>${dShort(firstDay)}</b></div>
@@ -343,8 +350,8 @@ async function showStats(){
     <p class="sec">CA de l'équipe — ${DASH_WEEKS} dernières semaines</p>
     ${barChart(weekly,'CA de l\'équipe par semaine sur '+DASH_WEEKS+' semaines')}
     <p class="sec">Classement général</p>
-    <table><tr><th>#</th><th>Agent</th><th>CA total</th><th>Part</th><th>Semaines</th><th>Moy. / sem.</th><th>Meilleur jour</th><th>Dernier rapport</th><th>Commission</th><th>Ar</th></tr>${gRows}
-    <tfoot><tr><td></td><td>Total</td><td>${fmt(gCa)}</td><td></td><td>${allWeeks.size}</td><td></td><td></td><td></td><td>${fmt(gCo)}</td><td>${fmt(gCo*AR_MULT)}</td></tr></tfoot></table>
+    <table><tr><th>#</th><th>Agent</th><th>CA total</th><th>Part</th><th>Semaines</th><th>Moy. / sem.</th><th>Meilleur jour</th><th>Dernier rapport</th><th>Commission</th>${arH()}</tr>${gRows}
+    <tfoot><tr><td></td><td>Total</td><td>${fmt(gCa)}</td><td></td><td>${allWeeks.size}</td><td></td><td></td><td></td><td>${fmt(gCo)}</td>${arC(gCo*AR_MULT)}</tr></tfoot></table>
   </div>`;
 }
 
@@ -370,7 +377,7 @@ async function saveMM(uid){
 function calc(){
   let ca=0; days.forEach(d=>{ ca += +$('ca_'+iso(d)).value||0; });
   const r = (+$('rate').value||0) / 100;
-  $('tca').textContent = fmt(ca); $('tco').textContent = fmt(ca*r); $('tar').textContent = fmt(ca*r*AR_MULT);
+  $('tca').textContent = fmt(ca); $('tco').textContent = fmt(ca*r); if($('tar')) $('tar').textContent = fmt(ca*r*AR_MULT);
 }
 async function save(uid){
   const up=[], del=[];
