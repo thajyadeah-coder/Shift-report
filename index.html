@@ -232,7 +232,7 @@ function catchUp(o){
   const msg = left===0 ? '✔ L\'objectif hebdomadaire de l\'agence est atteint.'
     : rem===0 ? `Semaine terminée : ${fmt(left)} d'objectif n'ont pas été réalisés.`
     : `Pour atteindre l'objectif de la semaine, il faut réaliser ${fmt(left)} sur les ${rem} jour${rem>1?'s':''} restant${rem>1?'s':''}, soit ${fmt(need)} par jour (aujourd'hui inclus).`;
-  return `<div class="card"><h2>Objectif de l'agence à rattraper</h2>
+  return `<div class="card"><h2>Rattrapage de la semaine</h2>
   <div class="tiles" style="margin-bottom:8px">
     <div class="k"><span>${late?'Retard à rattraper':'Avance'} (jours terminés)</span><b class="${late?'down':'up'}">${fmt(Math.abs(gap))}</b><span>${done} jour${done>1?'s':''} terminé${done>1?'s':''} × ${fmt(o.dayGoal)}</span></div>
     <div class="k"><span>Reste à réaliser (semaine)</span><b>${fmt(left)}</b>${pbar(o.wTot,o.weekGoal)}</div>
@@ -255,6 +255,50 @@ function objSummary(goals,rows,tr){
   if(goals===null) return '';
   const o=objData(goals,rows,tr);
   return o.dayGoal ? objTiles(o) : '<p class="hint">Aucun objectif défini : ajoutez vos modèles dans l\'onglet Objectifs.</p>';
+}
+const frDate = d => new Date(d+'T00:00:00').toLocaleDateString('fr-FR');
+function cuProgress(cu,ca){
+  const amt=Number(cu.amount||0), left=Math.max(amt-ca,0), today=iso(new Date());
+  const rem=cu.end_day?Math.max(Math.round((new Date(cu.end_day+'T00:00:00')-new Date(today+'T00:00:00'))/864e5)+1,0):null;
+  const need=rem>0?left/rem:null;
+  const msg = left===0 ? '✔ L\'objectif à rattraper est atteint.'
+    : cu.end_day && rem===0 ? `Date limite dépassée : ${fmt(left)} restent à rattraper.`
+    : cu.end_day ? `Il reste ${fmt(left)} à rattraper en ${rem} jour${rem>1?'s':''}, soit ${fmt(need)} par jour (aujourd'hui inclus).`
+    : `Il reste ${fmt(left)} à rattraper.`;
+  return `<div class="card"><h2>Objectif général à rattraper</h2>
+  <div class="tiles" style="margin-bottom:8px">
+    <div class="k"><span>Objectif à rattraper</span><b>${fmt(amt)}</b><span>CA compté depuis le ${frDate(cu.start_day)}</span></div>
+    <div class="k"><span>CA réalisé</span><b>${fmt(ca)}</b>${pbar(ca,amt)}${stBadge(ca,amt)}</div>
+    <div class="k"><span>Reste à rattraper</span><b>${fmt(left)}</b></div>
+    ${cu.end_day?`<div class="k"><span>Jours restants</span><b>${rem}</b><span>jusqu'au ${frDate(cu.end_day)}</span></div><div class="k"><span>CA nécessaire / jour</span><b>${need===null?'—':fmt(need)}</b></div>`:''}
+  </div><p class="hint" style="margin:0">${msg}</p></div>`;
+}
+function cuCard(cu,ok,ca){
+  if(!ok) return `<div class="card"><h2>Objectif général de l'agence à rattraper</h2><p class="msg">Table « settings » absente : exécutez le SQL fourni dans Supabase pour activer cette fonction.</p></div>`;
+  return `<div class="card mm"><h2>Objectif général de l'agence à rattraper</h2>
+  <p class="hint">Saisissez le montant de CA que l'agence doit rattraper. Le suivi compte le CA réalisé à partir de la date de départ et se met à jour automatiquement.</p>
+  <div class="row" style="align-items:flex-end">
+    <label>Montant à rattraper<input id="cu_a" inputmode="decimal" placeholder="Ex. 5000" value="${cu?cu.amount:''}"></label>
+    <label>Date de départ<input id="cu_s" type="date" value="${cu?cu.start_day:iso(new Date())}"></label>
+    <label>Date limite (facultatif)<input id="cu_e" type="date" value="${cu&&cu.end_day?cu.end_day:''}"></label>
+    <button class="p" onclick="saveCU()">Enregistrer</button>${cu?'<button onclick="delCU()">Réinitialiser</button>':''}</div>
+  <div id="cu_msg" class="msg"></div></div>${cu?cuProgress(cu,ca):''}`;
+}
+async function saveCU(){
+  const raw=$('cu_a').value.trim(), amt=num(raw), st=$('cu_s').value, en=$('cu_e').value||null, m=$('cu_msg');
+  m.className='msg';
+  if(!raw||!Number.isFinite(amt)||amt<=0) return m.textContent='Indiquez un montant à rattraper valide (nombre positif).';
+  if(!st) return m.textContent='Indiquez la date de départ.';
+  if(en&&en<st) return m.textContent='La date limite doit être postérieure à la date de départ.';
+  const {error}=await sb.from('settings').upsert({key:'catchup',amount:amt,start_day:st,end_day:en,updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(error) return m.textContent='Erreur : '+error.message;
+  show();
+}
+async function delCU(){
+  if(!confirm('Réinitialiser l\'objectif à rattraper ?')) return;
+  const {error}=await sb.from('settings').delete().eq('key','catchup');
+  if(error) alert('Erreur : '+error.message);
+  show();
 }
 async function addModel(){
   const nm=$('md_nm').value.trim(), raw=$('md_g').value.trim(), g=num(raw), m=$('md_msg');
@@ -471,6 +515,16 @@ async function show(){
     admin ? allEntries(iso(new Date()),iso(new Date())).catch(()=>[]) : Promise.resolve([])
   ]);
   const goals=md.error?null:(md.data||[]);
+  let cu=null, cuOk=true, cuCA=0;
+  if(admin && (t==='dash'||t==='goals')){
+    const c=await sb.from('settings').select('*').eq('key','catchup').maybeSingle();
+    if(c.error) cuOk=false;
+    else if(c.data){
+      cu=c.data;
+      const rr=await allEntries(cu.start_day,iso(new Date())).catch(()=>[]);
+      cuCA=rr.reduce((s,r)=>s+Number(r.ca||0),0);
+    }
+  }
   if(!admin || !profiles.find(p=>p.id===viewId)) viewId=me.id;
   if(admin&&t==='agent'){
     const ags=profiles.filter(p=>p.role!=='admin');
@@ -503,7 +557,7 @@ async function show(){
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
   let dash='', team='', access='';
-  if(admin && t==='dash') dash=objSummary(goals,rows,tr)+dashCard(profiles,rows,hStart);
+  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr)+dashCard(profiles,rows,hStart);
 
   let agent='';
   if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+statsCard(vu,hist,hStart);
@@ -547,7 +601,7 @@ async function show(){
         <td>${fmt(w)} / ${fmt(gl*7)}</td>
         <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
     }).join('');
-    goalsTab=`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
+    goalsTab=cuCard(cu,cuOk,cuCA)+`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
     <p class="hint">Le nom du modèle doit être identique à celui saisi par les agents (ils le retrouvent dans la liste de suggestions). Réutiliser un nom existant met à jour son objectif.</p>
     <div class="row"><input id="md_nm" placeholder="Nom du modèle"><input id="md_g" inputmode="decimal" placeholder="Objectif journalier (CA)"><button class="p" onclick="addModel()">Ajouter le modèle</button></div>
     <div id="md_msg" class="ok">${esc(notice)}</div></div>`;
