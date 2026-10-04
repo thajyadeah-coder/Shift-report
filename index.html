@@ -180,7 +180,15 @@ async function resetPw(b){
   const em=b.dataset.t;
   if(!confirm('Envoyer un lien de réinitialisation du mot de passe à '+em+' ?')) return;
   const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
+  if(!error) await sb.from('agent_credentials').delete().eq('user_id',b.dataset.u);
   b.textContent=error?'Échec : '+error.message:'Lien envoyé ✓';
+}
+async function noteCred(b){
+  const uid=b.dataset.u, pw=$('cr_'+uid).value.trim();
+  if(!pw) return;
+  const {error}=await sb.from('agent_credentials').upsert({user_id:uid,email:b.dataset.t,password:pw,updated_at:new Date().toISOString()},{onConflict:'user_id'});
+  if(error) return alert('Erreur : '+error.message);
+  show();
 }
 function recoveryView(){
   recovering=true;
@@ -413,6 +421,11 @@ async function show(){
   });
   const mine=byU[vu.id]||{};
 
+  let credBy={}, credOk=true;
+  if(admin && t==='access'){
+    const c=await sb.from('agent_credentials').select('user_id,password');
+    if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
+  }
   let dash='', team='', access='';
   if(admin && t==='dash') dash=dashCard(profiles,rows,hStart);
 
@@ -438,12 +451,12 @@ async function show(){
 
   if(admin && t==='access'){
     access=`<div class="card"><h2>Accès et identifiants</h2>
-    <p class="hint">L'identifiant de connexion est l'adresse email. Pour des raisons de sécurité, les mots de passe sont chiffrés par Supabase : personne, y compris l'administrateur, ne peut les consulter. En cas d'oubli, envoyez à l'agent un lien de réinitialisation par email.</p>
+    <p class="hint">L'identifiant de connexion est l'adresse email. Supabase chiffre toujours le mot de passe réel de connexion (cela ne se modifie pas) ; la colonne ci-dessous affiche en clair le mot de passe que vous avez défini à la création du compte ou noté vous-même, visible uniquement par l'administrateur. Si l'agent change son mot de passe, cette valeur n'est plus à jour : envoyez-lui plutôt un lien de réinitialisation.</p>${credOk?'':'<p class="msg">Table agent_credentials absente : exécutez le SQL fourni dans Supabase pour afficher les mots de passe.</p>'}
     <table><tr><th>Agent</th><th>Identifiant (email)</th><th>Mot de passe</th><th>Statut</th><th>Action</th></tr>
     ${profiles.map(p=>`<tr><td>${esc(p.full_name||'(sans nom)')}</td>
       <td>${esc(p.email)} <button type="button" data-t="${esc(p.email)}" onclick="copyTxt(this)">Copier</button></td>
-      <td><span style="color:var(--mute)">🔒 Chiffré</span></td><td>${badge(lastBy[p.id])}</td>
-      <td><button type="button" data-t="${esc(p.email)}" onclick="resetPw(this)">Envoyer un lien de réinitialisation</button></td></tr>`).join('')}</table>
+      <td>${!credOk?'<span style="color:var(--mute)">—</span>':credBy[p.id]?`<code>${esc(credBy[p.id])}</code> <button type="button" data-t="${esc(credBy[p.id])}" onclick="copyTxt(this)">Copier</button>`:`<input id="cr_${p.id}" placeholder="Mot de passe connu" style="width:150px"> <button type="button" data-u="${p.id}" data-t="${esc(p.email)}" onclick="noteCred(this)">Noter</button>`}</td><td>${badge(lastBy[p.id])}</td>
+      <td><button type="button" data-u="${p.id}" data-t="${esc(p.email)}" onclick="resetPw(this)">Envoyer un lien de réinitialisation</button></td></tr>`).join('')}</table>
     <p class="hint" style="margin-top:10px">Pour que le lien ramène l'agent sur cette page, renseignez l'adresse de votre site dans Supabase : Authentication › URL Configuration › Site URL.</p></div>`;
   }
 
@@ -605,7 +618,8 @@ async function createAgent(){
     return;
   }
   await sb.from('profiles').update({commission:tx}).eq('id',data.user.id);
-  notice='Compte créé pour '+nm+'. L’agent se connecte avec cet email et ce mot de passe.'
+  const {error:ce}=await sb.from('agent_credentials').upsert({user_id:data.user.id,email:em,password:pw},{onConflict:'user_id'});
+  notice='Compte créé pour '+nm+'. L’agent se connecte avec cet email et ce mot de passe.'+(ce?' Le mot de passe n’a pas pu être noté dans l’onglet Accès (table agent_credentials manquante).':'')
     +(data.session?'':' Attention : la confirmation par email est active dans Supabase. L’agent doit confirmer son email, ou désactivez « Confirm email » dans Supabase.');
   show();
 }
