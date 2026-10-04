@@ -46,7 +46,7 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .dh b{color:var(--acc)}
 .ln,.lh{display:grid;grid-template-columns:2fr 1fr 2fr 40px;gap:8px;margin-bottom:6px}
 .ln.nd,.lh.nd{grid-template-columns:2fr 1fr 40px}
-.ln input{min-width:0;width:100%}.ln button{padding:8px 0}
+.ln input,.ln select{min-width:0;width:100%}.ln button{padding:8px 0}
 .lh{color:var(--mute);font-size:13px;font-weight:600;margin-bottom:8px}
 .bd{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(31,111,92,.15);color:var(--acc)}.bd.off{background:rgba(150,150,150,.2);color:var(--mute)}
 .bd.warn{background:rgba(199,119,0,.15);color:var(--warn)}
@@ -123,8 +123,19 @@ async function mmApi(method, q, body){
 }
 
 // Saisie : une ligne = un modèle, un chiffre d'affaires, un détail facultatif
+// Liste officielle des modèles (gérée par l'admin, onglet Objectifs) : les agents ne font que choisir
+let MODEL_NAMES = [];
+function modelOpts(cur){
+  const c=String(cur||'').trim(), k=c.toLocaleLowerCase('fr');
+  const found=MODEL_NAMES.find(n=>n.trim().toLocaleLowerCase('fr')===k);
+  const sel=found||c; // une ancienne saisie hors liste reste visible pour ne pas être perdue
+  let h=`<option value=""${sel?'':' selected'}>Choisir un modèle</option>`;
+  h+=MODEL_NAMES.map(n=>`<option value="${esc(n)}"${n===sel?' selected':''}>${esc(n)}</option>`).join('');
+  if(c && !found) h+=`<option value="${esc(c)}" selected>${esc(c)} (hors liste)</option>`;
+  return h;
+}
 const lineHtml = (m={}) => `<div class="ln${HAS_DETAIL?'':' nd'}">
-  <input class="m" list="mdl" placeholder="Modèle" aria-label="Modèle" value="${esc(m.model_name)}" oninput="calc()">
+  <select class="m" aria-label="Modèle" onchange="calc()">${modelOpts(m.model_name)}</select>
   <input class="c" inputmode="decimal" placeholder="CA" aria-label="Chiffre d'affaires" value="${m.ca ?? ''}" oninput="calc()">
   ${HAS_DETAIL?`<input class="d" maxlength="200" placeholder="Détail (facultatif)" aria-label="Détail" value="${esc(m.detail)}">`:''}
   <button type="button" onclick="delLine(this)" aria-label="Supprimer la ligne" title="Supprimer">✕</button></div>`;
@@ -350,9 +361,11 @@ async function delCU(){
   show();
 }
 async function addModel(){
-  const nm=$('md_nm').value.trim(), raw=$('md_g').value.trim(), g=num(raw), m=$('md_msg');
+  const typed=$('md_nm').value.replace(/\s+/g,' ').trim(), raw=$('md_g').value.trim(), g=num(raw), m=$('md_msg');
+  // un nom déjà existant (même en minuscules/majuscules) met à jour le modèle existant au lieu d'en créer un second
+  const nm=MODEL_NAMES.find(n=>mkey(n)===mkey(typed))||typed;
   m.className='msg';
-  if(!nm) return m.textContent='Indiquez le nom du modèle.';
+  if(!typed) return m.textContent='Indiquez le nom du modèle.';
   if(!raw||!Number.isFinite(g)||g<0) return m.textContent='Indiquez un objectif journalier valide (nombre positif).';
   const {error}=await sb.from('models').upsert({name:nm,daily_goal:g},{onConflict:'name'});
   if(error) return m.textContent='Erreur : '+error.message;
@@ -564,6 +577,7 @@ async function show(){
     admin ? allEntries(iso(new Date()),iso(new Date())).catch(()=>[]) : Promise.resolve([])
   ]);
   const goals=md.error?null:(md.data||[]);
+  MODEL_NAMES=(goals||[]).map(g=>String(g.name).trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
   agMap={}; agOk=true;
   if(admin && (t==='dash'||t==='goals')){
     const td0=iso(new Date()), lo=td0<from?td0:from, hi=td0>to?td0:to;
@@ -657,7 +671,7 @@ async function show(){
         <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
     }).join('');
     goalsTab=cuCard(cu,cuOk,cuCA)+agencyCard(o)+`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
-    <p class="hint">Le nom du modèle doit être identique à celui saisi par les agents (ils le retrouvent dans la liste de suggestions). Réutiliser un nom existant met à jour son objectif.</p>
+    <p class="hint">Les agents ne peuvent que choisir un modèle dans cette liste : ajoutez ici chaque modèle une seule fois, c'est la seule source des noms (plus de fautes de frappe). Réutiliser un nom existant met à jour son objectif.</p>
     <div class="row"><input id="md_nm" placeholder="Nom du modèle"><input id="md_g" inputmode="decimal" placeholder="Objectif journalier (CA)"><button class="p" onclick="addModel()">Ajouter le modèle</button></div>
     <div id="md_msg" class="ok">${esc(notice)}</div></div>`;
     notice='';
@@ -680,11 +694,11 @@ async function show(){
     <span style="color:var(--mute)">Semaine du ${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
 
   const first=esc((vu.full_name||vu.email||'').split(/[ @]/)[0]);
-  const report=(admin||t!=='reports')?'':`<datalist id="mdl">${(goals||[]).map(g=>`<option value="${esc(g.name)}">`).join('')}</datalist>
-  <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
+  const report=(admin||t!=='reports')?'':`<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
   </div>
   <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> 👋 Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
-  <p class="hint">Pour chaque jour, ajoutez une ligne par modèle : modèle, chiffre d'affaires et détail éventuel. Les totaux se calculent automatiquement. Laissez un jour vide en l'absence d'activité.</p>
+  <p class="hint">Pour chaque jour, ajoutez une ligne par modèle : choisissez le modèle dans la liste, puis indiquez le chiffre d'affaires et un détail éventuel. Les totaux se calculent automatiquement. Laissez un jour vide en l'absence d'activité.</p>
+  ${MODEL_NAMES.length?'':'<p class="msg">Aucun modèle disponible pour le moment : demandez à l\'administrateur d\'en ajouter dans l\'onglet Objectifs.</p>'}
   <div class="lh${HAS_DETAIL?'':' nd'}"><span>Modèle</span><span>Chiffre d'affaires</span>${HAS_DETAIL?'<span>Détail</span>':''}<span></span></div>
   ${days.map(d=>{
     const k=iso(d), r=mine[k]||{models:[]};
