@@ -1,0 +1,29 @@
+{
+  "name": "repo",
+  "version": "1.0.0",
+  "description": "",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://x-access-token:ghs_13473_eyJhbGciOiJFUzI1NiIsInR5cCI6IkpXVCJ9.eyJhdWQiOiJhdXRobmQiLCJjdHgiOiJYR3Rnd0VLZURJajNmdlV1VlR6QkNfQXZRbFFTcW93dThCZloyX2NfX3dTRGhCTnlHVVJQUXJOSGp3IiwiZXhwIjoxNzkxMTMwMjk3LCJpYXQiOjE3OTExMjY2OTcsImlzcyI6ImdpdGh1YiIsImp0aSI6IjVhYWViNDkxLTU1NGMtNDJlNS04ZDliLWRkOWVmOWUzNmY0NSIsInZlciI6M30.sS6jR04bcbrYSeQb2Xy8nbl7xIHaGlm2KHFBzL5mLn4Xgqy-soPxC-TJeoXiDUZ-fEyCYy0oJoJ-XK92VpH_Kw@github.com/thajyadeah-coder/Shift-report.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "type": "module",
+  "bugs": {
+    "url": "https://github.com/thajyadeah-coder/Shift-report/issues"
+  },
+  "homepage": "https://github.com/thajyadeah-coder/Shift-report#readme",
+  "dependencies": {
+    "@netlify/database": "^2.0.1",
+    "@netlify/functions": "^6.0.2",
+    "drizzle-orm": "^1.0.0-beta.22"
+  },
+  "devDependencies": {
+    "drizzle-kit": "^1.0.0-beta.22"
+  }
+}
