@@ -29,6 +29,9 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:130px}
 .tiles div{border:1px solid var(--line);border-radius:6px;padding:8px 10px}.tiles span{display:block;color:var(--mute);font-size:13px}.tiles b{font-size:18px}
 .chart{width:100%;height:auto;display:block}.chart text{fill:var(--mute);font-size:11px}.chart .v{fill:var(--ink);font-weight:600}
 .chart .bar{fill:var(--acc);opacity:.45}.chart .bar.cur{opacity:1}.chart .grid{stroke:var(--line)}
+.meter{display:inline-block;width:70px;height:6px;background:var(--line);border-radius:3px;vertical-align:middle;margin-right:6px;overflow:hidden}.meter i{display:block;height:100%;background:var(--acc)}
+.up{color:var(--acc)}.down{color:var(--err)}
+.sec{font-size:13px;text-transform:uppercase;letter-spacing:.05em;color:var(--mute);margin:22px 0 10px}
 .mm label{display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px}
 </style>
 </head>
@@ -80,7 +83,8 @@ async function mmApi(method, q, body){
   return mmRow(data);
 }
 const greet = () => new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
-let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '';
+let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '', page = 'report';
+function setPage(p){ page = p; window.scrollTo(0,0); show(); }
 
 async function authView(msg, mode){
   const {data:has} = await sb.rpc('has_users');
@@ -120,10 +124,26 @@ async function start(){
 
 function shift(n){ weekStart.setDate(weekStart.getDate()+n*7); show(); }
 function pickWeek(v){ if(v){ weekStart = monday(new Date(v+'T00:00:00')); show(); } }
-function pick(id){ viewId = id; show(); }
+function pick(id){ viewId = id; page = 'report'; show(); }
+
+function topBar(){
+  const nav = me.role !== 'admin' ? '' : page === 'stats'
+    ? `<button onclick="setPage('report')">← Retour aux rapports</button>`
+    : `<button class="p" onclick="setPage('stats')">Statistiques globales</button>`;
+  return `<header><h1>Shift Report${page==='stats'?' — Statistiques':''}</h1><div class="row">${nav}<span>${esc(me.full_name||me.email)} (${me.role})</span><button onclick="logout()">Déconnexion</button></div></header>`;
+}
+function weekNav(){
+  return `<div class="card"><div class="row">
+    <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
+    <input type="date" value="${iso(days[0])}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
+    <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
+    <span style="color:var(--mute)">${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
+}
 
 async function show(){
   days = [...Array(7)].map((_,i)=>{const d=new Date(weekStart);d.setDate(d.getDate()+i);return d;});
+  if(page === 'stats' && me.role === 'admin') return showStats();
+  page = 'report';
   const from = iso(days[0]), to = iso(days[6]), admin = me.role === 'admin';
   let profiles = [me], all = [];
   if(admin){
@@ -171,12 +191,7 @@ async function show(){
     notice = '';
   }
 
-  $('app').innerHTML = `<header><h1>Shift Report</h1><div class="row"><span>${esc(me.full_name||me.email)} (${me.role})</span><button onclick="logout()">Déconnexion</button></div></header>
-  <div class="card"><div class="row">
-    <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
-    <input type="date" value="${from}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
-    <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
-    <span style="color:var(--mute)">${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>
+  $('app').innerHTML = `${topBar()}${weekNav()}
   ${recap}
   <div class="card"><h2>Shift report — ${esc(vu.full_name||vu.email)}</h2>
   <p class="hello">${greet()} <b>${esc((vu.full_name||vu.email||'').split(/[ @]/)[0])}</b> 👋 Bienvenue sur ton shift report !</p>
@@ -223,6 +238,116 @@ function statsCard(vu, rows, hStart){
   <svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="CA par semaine sur ${STAT_WEEKS} semaines">
     <line class="grid" x1="${pl}" x2="${W-pr}" y1="${pt+ih}" y2="${pt+ih}"></line>${bars}</svg></div>`;
 }
+// ===== Statistiques globales (admin) =====
+const DASH_WEEKS = 12;
+async function fetchAllEntries(){
+  const out = [];
+  for(let i=0;;i+=1000){
+    const {data,error} = await sb.from('entries').select('user_id,day,ca').order('day').range(i,i+999);
+    if(error) throw new Error(error.message);
+    out.push(...data); if(data.length < 1000) return out;
+  }
+}
+const evoHtml = (cur, prev) => { if(!(prev>0)) return '<span style="color:var(--mute)">—</span>'; const e=Math.round((cur-prev)/prev*100); return `<span class="${e>=0?'up':'down'}">${e>0?'+':''}${e} %</span>`; };
+const meter = p => `<span class="meter" aria-hidden="true"><i style="width:${Math.min(100,Math.max(0,p))}%"></i></span>${fmt(p)} %`;
+const dShort = k => k ? new Date(k+'T00:00:00').toLocaleDateString('fr-FR') : '—';
+function barChart(items, aria){
+  const W=640,H=200,pl=8,pr=8,pt=22,pb=28, max=Math.max(...items.map(i=>i.v),1), bw=(W-pl-pr)/items.length, ih=H-pt-pb;
+  const g = items.map((it,i)=>{const h=it.v/max*ih, x=pl+i*bw+bw*.18, y=pt+ih-h;
+    return `<g><title>${esc(it.title)} : ${fmt(it.v)}</title>
+    <rect class="bar${it.cur?' cur':''}" x="${x}" y="${y}" width="${bw*.64}" height="${Math.max(h,it.v>0?2:0)}" rx="3"></rect>
+    ${it.v>0?`<text class="v" x="${x+bw*.32}" y="${y-6}" text-anchor="middle">${fmt(it.v)}</text>`:''}
+    <text x="${x+bw*.32}" y="${H-10}" text-anchor="middle">${esc(it.label)}</text></g>`;}).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(aria)}"><line class="grid" x1="${pl}" x2="${W-pr}" y1="${pt+ih}" y2="${pt+ih}"></line>${g}</svg>`;
+}
+
+async function showStats(){
+  $('app').innerHTML = topBar() + weekNav() + '<div class="card"><p class="hint">Chargement des statistiques…</p></div>';
+  let profiles, rows;
+  try{
+    const [p, e] = await Promise.all([sb.from('profiles').select('*').order('full_name'), fetchAllEntries()]);
+    if(p.error) throw new Error(p.error.message);
+    profiles = p.data || []; rows = e;
+  }catch(err){
+    $('app').innerHTML = topBar() + weekNav() + `<div class="card"><p class="msg">Impossible de charger les statistiques : ${esc(err.message)}</p></div>`;
+    return;
+  }
+  if(page !== 'stats') return;
+
+  const from = iso(days[0]), to = iso(days[6]);
+  const pS = new Date(days[0]); pS.setDate(pS.getDate()-7); const pE = new Date(days[0]); pE.setDate(pE.getDate()-1);
+  const pFrom = iso(pS), pTo = iso(pE);
+  const hStart = new Date(weekStart); hStart.setDate(hStart.getDate()-(DASH_WEEKS-1)*7);
+  const daily = days.map((d,i)=>({label:d.toLocaleDateString('fr-FR',{weekday:'short'}), title:dayName(d), v:0, cur:true}));
+  const weekly = [...Array(DASH_WEEKS)].map((_,i)=>{const d=new Date(hStart);d.setDate(d.getDate()+i*7);
+    return {label:d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}), title:'Semaine du '+d.toLocaleDateString('fr-FR'), v:0, cur:i===DASH_WEEKS-1};});
+  const S = {};
+  profiles.forEach(p=>{ S[p.id] = {p, wCa:0, wDays:0, pCa:0, ca:0, days:0, weeks:new Set(), best:0, bestDay:null, last:null}; });
+  const allWeeks = new Set(); let firstDay = null;
+
+  rows.forEach(r=>{
+    const s = S[r.user_id]; if(!s) return;
+    const ca = Number(r.ca||0), k = r.day;
+    if(k>=from && k<=to){ s.wCa += ca; if(ca>0) s.wDays++; daily[Math.round((new Date(k+'T00:00:00')-days[0])/864e5)].v += ca; }
+    if(k>=pFrom && k<=pTo) s.pCa += ca;
+    const di = Math.round((new Date(k+'T00:00:00')-hStart)/864e5);
+    if(di>=0 && k<=to && weekly[Math.floor(di/7)]) weekly[Math.floor(di/7)].v += ca;
+    s.ca += ca;
+    if(ca>0){ const wk = iso(monday(new Date(k+'T00:00:00'))); s.days++; s.weeks.add(wk); allWeeks.add(wk); if(!s.last||k>s.last) s.last=k; if(!firstDay||k<firstDay) firstDay=k; }
+    if(ca>s.best){ s.best = ca; s.bestDay = k; }
+  });
+
+  const list = Object.values(S);
+  const sum = f => list.reduce((t,s)=>t+f(s),0);
+  // Semaine
+  const wCa = sum(s=>s.wCa), wPrev = sum(s=>s.pCa), wCo = sum(s=>s.wCa*s.p.commission);
+  const wActive = list.filter(s=>s.wCa>0), wTop = [...list].sort((a,b)=>b.wCa-a.wCa)[0];
+  const wBestDay = daily.reduce((b,d)=>d.v>b.v?d:b, {v:0});
+  const name = s => `<a href="#" onclick="pick('${s.p.id}');return false">${esc(s.p.full_name||s.p.email)}</a>`;
+  const wRows = [...list].sort((a,b)=>b.wCa-a.wCa).map((s,i)=>`<tr><td>${i+1}</td><td>${name(s)}</td><td><b>${fmt(s.wCa)}</b></td>
+    <td>${meter(wCa?s.wCa/wCa*100:0)}</td><td>${s.wDays}</td><td>${pct(s.p.commission)}</td><td>${fmt(s.wCa*s.p.commission)}</td>
+    <td>${fmt(s.wCa*s.p.commission*AR_MULT)}</td><td>${evoHtml(s.wCa,s.pCa)}</td></tr>`).join('');
+  // Général
+  const gCa = sum(s=>s.ca), gCo = sum(s=>s.ca*s.p.commission), gDays = sum(s=>s.days);
+  const gRows = [...list].sort((a,b)=>b.ca-a.ca).map((s,i)=>`<tr><td>${i+1}</td><td>${name(s)}</td><td><b>${fmt(s.ca)}</b></td>
+    <td>${meter(gCa?s.ca/gCa*100:0)}</td><td>${s.weeks.size}</td><td>${fmt(s.weeks.size?s.ca/s.weeks.size:0)}</td>
+    <td>${s.best>0?fmt(s.best)+`<small>${dShort(s.bestDay)}</small>`:'—'}</td><td>${dShort(s.last)}</td>
+    <td>${fmt(s.ca*s.p.commission)}</td><td>${fmt(s.ca*s.p.commission*AR_MULT)}</td></tr>`).join('');
+
+  $('app').innerHTML = `${topBar()}${weekNav()}
+  <div class="card"><h2>Tableau de bord hebdomadaire — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
+    <p class="hint">Performance de toute l'équipe sur la semaine sélectionnée, comparée à la semaine précédente.</p>
+    <div class="tiles">
+      <div><span>CA de l'équipe</span><b>${fmt(wCa)}</b><span>${evoHtml(wCa,wPrev)} vs sem. préc.</span></div>
+      <div><span>Commissions</span><b>${fmt(wCo)}</b><span>${fmt(wCo*AR_MULT)} Ar</span></div>
+      <div><span>Agents actifs</span><b>${wActive.length} / ${list.length}</b></div>
+      <div><span>Moyenne / agent actif</span><b>${fmt(wActive.length?wCa/wActive.length:0)}</b></div>
+      <div><span>Meilleur agent</span><b>${wTop&&wTop.wCa>0?fmt(wTop.wCa):'—'}</b><span>${wTop&&wTop.wCa>0?esc(wTop.p.full_name||wTop.p.email):''}</span></div>
+      <div><span>Meilleur jour</span><b>${wBestDay.v>0?fmt(wBestDay.v):'—'}</b><span style="text-transform:capitalize">${wBestDay.v>0?esc(wBestDay.title):''}</span></div>
+    </div>
+    ${barChart(daily,'CA de l\'équipe par jour sur la semaine')}
+    <p class="sec">Classement de la semaine</p>
+    <table><tr><th>#</th><th>Agent</th><th>CA</th><th>Part</th><th>Jours</th><th>Taux</th><th>Commission</th><th>Ar</th><th>Évolution</th></tr>${wRows}
+    <tfoot><tr><td></td><td>Total</td><td>${fmt(wCa)}</td><td></td><td>${sum(s=>s.wDays)}</td><td></td><td>${fmt(wCo)}</td><td>${fmt(wCo*AR_MULT)}</td><td>${evoHtml(wCa,wPrev)}</td></tr></tfoot></table>
+  </div>
+  <div class="card"><h2>Tableau de bord général</h2>
+    <p class="hint">Cumul de tous les rapports enregistrés depuis le début. Les commissions sont calculées avec le taux actuel de chaque agent.</p>
+    <div class="tiles">
+      <div><span>Agents inscrits</span><b>${list.length}</b></div>
+      <div><span>CA total</span><b>${fmt(gCa)}</b></div>
+      <div><span>Commissions totales</span><b>${fmt(gCo)}</b><span>${fmt(gCo*AR_MULT)} Ar</span></div>
+      <div><span>Moyenne / semaine</span><b>${fmt(allWeeks.size?gCa/allWeeks.size:0)}</b><span>${allWeeks.size} semaine(s) active(s)</span></div>
+      <div><span>Jours travaillés</span><b>${gDays}</b></div>
+      <div><span>Premier rapport</span><b>${dShort(firstDay)}</b></div>
+    </div>
+    <p class="sec">CA de l'équipe — ${DASH_WEEKS} dernières semaines</p>
+    ${barChart(weekly,'CA de l\'équipe par semaine sur '+DASH_WEEKS+' semaines')}
+    <p class="sec">Classement général</p>
+    <table><tr><th>#</th><th>Agent</th><th>CA total</th><th>Part</th><th>Semaines</th><th>Moy. / sem.</th><th>Meilleur jour</th><th>Dernier rapport</th><th>Commission</th><th>Ar</th></tr>${gRows}
+    <tfoot><tr><td></td><td>Total</td><td>${fmt(gCa)}</td><td></td><td>${allWeeks.size}</td><td></td><td></td><td></td><td>${fmt(gCo)}</td><td>${fmt(gCo*AR_MULT)}</td></tr></tfoot></table>
+  </div>`;
+}
+
 function mmCard(vu, m){
   m = m || {};
   const ops = MM_OPS.includes(m.operator)||!m.operator ? MM_OPS : [...MM_OPS, m.operator];
