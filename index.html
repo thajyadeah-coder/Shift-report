@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>Shift Report</title>
+<title>Shift Report — Suivi des ventes et commissions</title>
 <style>
 :root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--acc2:#6fd3b9;--card:#fff;--err:#b3261e}
 @media(prefers-color-scheme:dark){:root{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--acc2:#2f8f78;--card:#1c242c;--err:#ff8a80}}
@@ -11,21 +11,22 @@
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:16px}
 header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
-h1{font-size:22px;margin:0}h2{font-size:16px;margin:0 0 10px}
+.brand{display:flex;gap:10px;align-items:center}.brand small{display:block;color:var(--mute);font-size:13px}
+.logo{background:var(--acc);color:#fff;border-radius:10px;width:40px;height:40px;display:grid;place-items:center;font-weight:700}
+h1{font-size:21px;margin:0;line-height:1.2}h2{font-size:16px;margin:0 0 10px}
 .card{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:16px;margin-bottom:14px;overflow-x:auto;box-shadow:0 1px 3px rgba(0,0,0,.05)}
-input,select,button,textarea{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
-input[type=number]{width:110px}
-textarea.t{width:100%;min-width:220px;min-height:76px;resize:vertical}
+input,select,button{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
 button{cursor:pointer}button.p{background:var(--acc);color:#fff;border-color:var(--acc)}
-button:focus-visible,input:focus-visible,select:focus-visible,textarea:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid var(--acc);outline-offset:1px}
+code{background:var(--bg);padding:1px 5px;border-radius:4px;font-size:12px}
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
 th{color:var(--mute);font-weight:600;font-size:13px}tfoot td{font-weight:700}
-td small{display:block;color:var(--mute);white-space:normal;max-width:180px}
+td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .tot{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}.tot div span{display:block;color:var(--mute);font-size:13px}.tot b{font-size:18px}
 .msg{color:var(--err);margin-top:8px}.ok{color:var(--acc);margin-top:8px}.hint{color:var(--mute);font-size:13px;margin:0 0 10px}
-.auth{max-width:340px;margin:8vh auto}.auth input{width:100%;margin-bottom:8px}
-.hello{margin:0 0 6px}.hello b{color:var(--acc)}
+.auth{max-width:360px;margin:8vh auto}.auth input{width:100%;margin-bottom:8px}
+.hello{margin:10px 0 6px}.hello b{color:var(--acc)}
 .nav{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:14px}.nav button{border-radius:999px;padding:7px 16px}
 .nav button.on{background:var(--acc);color:#fff;border-color:var(--acc)}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
@@ -33,7 +34,6 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:180px}
 .tiles .k{border-left:4px solid var(--acc)}
 .up{color:var(--acc)!important}.down{color:var(--err)!important}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}.g2 .card{margin:0}
-@media(max-width:760px){.g2{grid-template-columns:1fr}}
 .chart{width:100%;height:auto;display:block}.chart text{fill:var(--mute);font-size:11px}.chart .v{fill:var(--ink);font-weight:600}
 .chart .bar{fill:var(--acc);opacity:.45}.chart .bar.cur{opacity:1}.chart .grid{stroke:var(--line)}
 .hb{display:grid;grid-template-columns:minmax(70px,130px) 1fr auto;gap:8px;align-items:center;margin:8px 0;font-size:14px}
@@ -41,7 +41,16 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:180px}
 .hb i{display:block;height:10px;border-radius:5px;background:var(--line)}
 .hb i u{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
 .hb em{font-style:normal;font-weight:600;font-size:13px}
+.day{border:1px solid var(--line);border-radius:10px;padding:12px;margin-bottom:10px}
+.dh{display:flex;justify-content:space-between;align-items:center;margin-bottom:8px;text-transform:capitalize;font-weight:600}
+.dh b{color:var(--acc)}
+.ln,.lh{display:grid;grid-template-columns:2fr 1fr 2fr 40px;gap:8px;margin-bottom:6px}
+.ln.nd,.lh.nd{grid-template-columns:2fr 1fr 40px}
+.ln input{min-width:0;width:100%}.ln button{padding:8px 0}
+.lh{color:var(--mute);font-size:13px;font-weight:600;margin-bottom:8px}
 .mm label{display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px}
+@media(max-width:760px){.g2{grid-template-columns:1fr}.lh{display:none}
+.ln,.ln.nd{grid-template-columns:1fr 1fr 40px}.ln button{order:3}.ln .d{order:4;grid-column:1/-1}}
 </style>
 </head>
 <body>
@@ -62,6 +71,7 @@ const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;
 const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const monday = d => { const x = new Date(d); x.setDate(x.getDate() - (x.getDay()+6)%7); x.setHours(0,0,0,0); return x; };
 const fmt = n => (Math.round(n*100)/100).toLocaleString('fr-FR');
+const num = v => Number(String(v ?? '').replace(/[\s\u00a0\u202f]/g,'').replace(',','.'));
 const pv = c => Math.round(Number(c||0)*1e6)/1e4;
 const pct = c => pv(c).toLocaleString('fr-FR') + ' %';
 const rateOpts = v => {
@@ -73,14 +83,13 @@ const dayName = d => d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',
 const dayShort = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
 const STAT_WEEKS = 8;
 const MM_OPS = ['MVola','Orange Money','Airtel Money'];
+let HAS_DETAIL = true; // passe à false si la colonne « detail » n'existe pas encore dans Supabase
 const wk = (day,h) => Math.floor((new Date(day+'T00:00:00')-h+36e5)/(7*864e5));
 const evoOf = (c,p) => p>0 ? Math.round((c-p)/p*100) : null;
 const evoTxt = e => e===null ? '—' : (e>0?'+':'')+e+' %';
 const evoCls = e => e===null ? '' : e>=0 ? 'up' : 'down';
 
-const mmRow = r => r && ({
-  userId:r.user_id,operator:r.operator,number:r.number,holder:r.holder,updatedAt:r.updated_at
-});
+const mmRow = r => r && ({userId:r.user_id,operator:r.operator,number:r.number,holder:r.holder,updatedAt:r.updated_at});
 
 async function mmApi(method, q, body){
   if(method === 'GET'){
@@ -94,7 +103,7 @@ async function mmApi(method, q, body){
   const {data:{session}} = await sb.auth.getSession();
   const number = String(body.number||'').trim().slice(0,30);
   if(number && !/^\+?[0-9 ]{6,20}$/.test(number))
-    throw new Error('Numéro invalide (chiffres uniquement, + autorisé).');
+    throw new Error('Numéro invalide : chiffres uniquement, le signe + est autorisé.');
   const row = {
     user_id:body.user_id || session?.user?.id,
     operator:String(body.operator||'').trim().slice(0,40),
@@ -102,29 +111,38 @@ async function mmApi(method, q, body){
     holder:String(body.holder||'').trim().slice(0,80),
     updated_at:new Date().toISOString()
   };
-  const {data,error} = await sb.from('mobile_money')
-    .upsert(row,{onConflict:'user_id'}).select().single();
+  const {data,error} = await sb.from('mobile_money').upsert(row,{onConflict:'user_id'}).select().single();
   if(error) throw new Error(error.message);
   return mmRow(data);
 }
 
-// Une ligne par modèle, au format "Nom du modèle | CA".
-function parseModels(text){
+// Saisie : une ligne = un modèle, un chiffre d'affaires, un détail facultatif
+const lineHtml = (m={}) => `<div class="ln${HAS_DETAIL?'':' nd'}">
+  <input class="m" placeholder="Modèle" aria-label="Modèle" value="${esc(m.model_name)}" oninput="calc()">
+  <input class="c" inputmode="decimal" placeholder="CA" aria-label="Chiffre d'affaires" value="${m.ca ?? ''}" oninput="calc()">
+  ${HAS_DETAIL?`<input class="d" maxlength="200" placeholder="Détail (facultatif)" aria-label="Détail" value="${esc(m.detail)}">`:''}
+  <button type="button" onclick="delLine(this)" aria-label="Supprimer la ligne" title="Supprimer">✕</button></div>`;
+
+function addLine(k){
+  const box=$('ln_'+k);
+  box.insertAdjacentHTML('beforeend',lineHtml());
+  box.lastElementChild.querySelector('.m').focus();
+}
+function delLine(b){ b.parentElement.remove(); calc(); }
+
+function readDay(k){
   const byName = new Map();
-  for(const [i,line] of String(text||'').split(/\r?\n/).entries()){
-    if(!line.trim()) continue;
-    const sep = line.lastIndexOf('|');
-    if(sep < 1) throw new Error(`Ligne ${i+1} : utilise « nom du modèle | CA ».`);
-    const name = line.slice(0,sep).trim();
-    const raw = line.slice(sep+1).trim().replace(/[\s\u00a0\u202f]/g,'').replace(',','.');
-    const ca = Number(raw);
-    if(!name) throw new Error(`Ligne ${i+1} : indique le nom du modèle.`);
-    if(!raw || !Number.isFinite(ca) || ca < 0)
-      throw new Error(`Ligne ${i+1} : le CA doit être un nombre positif.`);
-    const key = name.toLocaleLowerCase('fr');
-    if(byName.has(key)) byName.get(key).ca += ca;
-    else byName.set(key,{model_name:name,ca});
-  }
+  $('ln_'+k).querySelectorAll('.ln').forEach(r=>{
+    const name=r.querySelector('.m').value.trim(), raw=r.querySelector('.c').value.trim();
+    const det=r.querySelector('.d') ? r.querySelector('.d').value.trim() : '';
+    if(!name && !raw && !det) return;
+    if(!name) throw new Error('indiquez le modèle pour chaque ligne renseignée.');
+    const ca=num(raw);
+    if(!raw || !Number.isFinite(ca) || ca<0) throw new Error(`le chiffre d'affaires de « ${name} » doit être un nombre positif.`);
+    const key=name.toLocaleLowerCase('fr'), cur=byName.get(key);
+    if(cur){ cur.ca+=ca; if(det) cur.detail=cur.detail?cur.detail+' ; '+det:det; }
+    else byName.set(key,{model_name:name,ca,detail:det});
+  });
   return [...byName.values()];
 }
 
@@ -132,11 +150,14 @@ function parseModels(text){
 async function allEntries(from,to,uid){
   let out=[],i=0;
   for(;;){
-    let q=sb.from('model_entries').select('user_id,day,model_name,ca')
+    let q=sb.from('model_entries').select('user_id,day,model_name,ca'+(HAS_DETAIL?',detail':''))
       .gte('day',from).lte('day',to).order('day').order('user_id').order('model_name').range(i,i+999);
     if(uid) q=q.eq('user_id',uid);
     const {data,error}=await q;
-    if(error) throw error;
+    if(error){
+      if(HAS_DETAIL && /detail/i.test(error.message)){ HAS_DETAIL=false; out=[]; i=0; continue; }
+      throw error;
+    }
     out=out.concat(data||[]);
     if(!data||data.length<1000) return out;
     i+=1000;
@@ -149,14 +170,14 @@ let me = null, viewId = null, tab = null, weekStart = monday(new Date()), days =
 async function authView(msg, mode){
   const {data:has} = await sb.rpc('has_users');
   const first = has === false, reg = first || mode === 'signup';
-  $('app').innerHTML = `<div class="card auth"><h1>Shift Report</h1>
-  <p style="color:var(--mute)">${first?'Première utilisation : crée le compte administrateur.':reg?'Crée ton compte agent. Ton administrateur pourra ensuite régler ton taux de commission.':'Connecte-toi avec ton compte.'}</p>
+  $('app').innerHTML = `<div class="card auth"><div class="brand" style="margin-bottom:12px"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
+  <p style="color:var(--mute)">${first?'Première utilisation : créez le compte administrateur.':reg?'Créez votre compte agent. Votre administrateur définira ensuite votre taux de commission.':'Connectez-vous pour accéder à votre espace.'}</p>
   ${reg?'<input id="nm" placeholder="Nom complet" autocomplete="name">':''}
-  <input id="em" type="email" placeholder="Email" autocomplete="username">
-  <input id="pw" type="password" placeholder="Mot de passe (6 caractères min.)" autocomplete="${reg?'new-password':'current-password'}">
-  ${reg&&!first?'<input id="pw2" type="password" placeholder="Confirme le mot de passe" autocomplete="new-password">':''}
+  <input id="em" type="email" placeholder="Adresse email" autocomplete="username">
+  <input id="pw" type="password" placeholder="Mot de passe (6 caractères minimum)" autocomplete="${reg?'new-password':'current-password'}">
+  ${reg&&!first?'<input id="pw2" type="password" placeholder="Confirmez le mot de passe" autocomplete="new-password">':''}
   <div class="row">${first?'<button class="p" onclick="signup()">Créer le compte administrateur</button>':reg?'<button class="p" onclick="signup()">Créer mon compte</button>':'<button class="p" onclick="login()">Se connecter</button>'}</div>
-  ${first?'':`<p class="hint" style="margin-top:12px">${reg?'Déjà un compte ? <a href="#" onclick="authView(\'\',\'login\');return false">Se connecter</a>':'Pas encore de compte ? <a href="#" onclick="authView(\'\',\'signup\');return false">Créer un compte</a>'}</p>`}
+  ${first?'':`<p class="hint" style="margin-top:12px">${reg?'Déjà inscrit ? <a href="#" onclick="authView(\'\',\'login\');return false">Se connecter</a>':'Pas encore de compte ? <a href="#" onclick="authView(\'\',\'signup\');return false">Créer un compte</a>'}</p>`}
   <div class="msg" id="am">${msg||''}</div></div>`;
 }
 
@@ -168,13 +189,13 @@ async function login(){
 
 async function signup(){
   const nm=$('nm').value.trim(), em=$('em').value.trim(), pw=$('pw').value, am=$('am');
-  if(!nm||!em||pw.length<6) return am.textContent = 'Renseigne ton nom, ton email et un mot de passe de 6 caractères minimum.';
+  if(!nm||!em||pw.length<6) return am.textContent = 'Veuillez renseigner votre nom, votre email et un mot de passe de 6 caractères minimum.';
   if($('pw2') && $('pw2').value !== pw) return am.textContent = 'Les deux mots de passe ne correspondent pas.';
   const {data,error} = await sb.auth.signUp({email:em,password:pw,options:{data:{full_name:nm}}});
   if(error) return am.textContent = 'Inscription impossible : ' + error.message;
   if(data.user && data.user.identities && data.user.identities.length===0)
-    return am.textContent = 'Cet email est déjà utilisé. Connecte-toi plutôt.';
-  if(!data.session) authView('<span class="ok">Compte créé. Confirme ton email via le lien reçu, puis connecte-toi.</span>','login');
+    return am.textContent = 'Cette adresse email est déjà utilisée. Veuillez vous connecter.';
+  if(!data.session) authView('<span class="ok">Compte créé. Confirmez votre adresse email via le lien reçu, puis connectez-vous.</span>','login');
   else start();
 }
 
@@ -233,7 +254,7 @@ const weekItems = weeks => weeks.map((w,i)=>({
   t:'Semaine du '+w.d.toLocaleDateString('fr-FR')
 }));
 
-// ---------- Dashboard général (admin) ----------
+// ---------- Tableau de bord général (admin) ----------
 function dashCard(profiles,rows,hStart){
   const from=iso(days[0]),to=iso(days[6]);
   const weeks=weekSeries(rows,hStart);
@@ -256,22 +277,22 @@ function dashCard(profiles,rows,hStart){
   const top=Object.values(models).sort((a,b)=>b.ca-a.ca).slice(0,6);
 
   return `<div class="tiles">
-    <div class="k"><span>CA de la semaine</span><b>${fmt(tca)}</b><span class="${evoCls(evo)}">${evoTxt(evo)} vs semaine précédente</span></div>
-    <div class="k"><span>Commissions</span><b>${fmt(tco)}</b></div>
-    <div class="k"><span>Commissions en Ar</span><b>${fmt(tco*AR_MULT)}</b></div>
+    <div class="k"><span>Chiffre d'affaires</span><b>${fmt(tca)}</b><span class="${evoCls(evo)}">${evoTxt(evo)} vs semaine précédente</span></div>
+    <div class="k"><span>Commissions à verser</span><b>${fmt(tco)}</b></div>
+    <div class="k"><span>Commissions (Ar)</span><b>${fmt(tco*AR_MULT)}</b></div>
     <div class="k"><span>Agents actifs</span><b>${act} / ${profiles.length}</b></div>
-    <div class="k"><span>Moyenne / agent actif</span><b>${fmt(act?tca/act:0)}</b></div>
+    <div class="k"><span>CA moyen par agent actif</span><b>${fmt(act?tca/act:0)}</b></div>
   </div>
   <div class="g2">
-    <div class="card"><h2>CA de l'équipe par semaine</h2><p class="hint">${STAT_WEEKS} dernières semaines jusqu'à la semaine affichée.</p>${bars(weekItems(weeks),'CA équipe par semaine')}</div>
-    <div class="card"><h2>CA par jour — semaine affichée</h2><p class="hint">Total de tous les agents.</p>
-      ${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA équipe par jour')}</div>
+    <div class="card"><h2>Chiffre d'affaires de l'équipe par semaine</h2><p class="hint">Évolution sur les ${STAT_WEEKS} dernières semaines, jusqu'à la semaine affichée.</p>${bars(weekItems(weeks),'CA de l\'équipe par semaine')}</div>
+    <div class="card"><h2>Répartition par jour</h2><p class="hint">Total de tous les agents sur la semaine affichée.</p>
+      ${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA de l\'équipe par jour')}</div>
   </div>
   <div class="g2">
-    <div class="card"><h2>Classement des agents</h2><p class="hint">Clique sur un nom pour ouvrir son rapport.</p>
-      ${hbars(ag.filter(a=>a.ca>0).map(a=>({id:a.p.id,l:a.p.full_name||a.p.email,v:a.ca,r:`${fmt(a.ca)} · ${Math.round(a.ca/tca*100)} %`})),'Aucune saisie cette semaine.')}</div>
-    <div class="card"><h2>Modèles les plus vendus</h2><p class="hint">Top 6 de la semaine.</p>
-      ${hbars(top.map(m=>({l:m.n,v:m.ca,r:fmt(m.ca)})),'Aucune saisie cette semaine.')}</div>
+    <div class="card"><h2>Classement des agents</h2><p class="hint">Cliquez sur un agent pour consulter son rapport.</p>
+      ${hbars(ag.filter(a=>a.ca>0).map(a=>({id:a.p.id,l:a.p.full_name||a.p.email,v:a.ca,r:`${fmt(a.ca)} · ${Math.round(a.ca/tca*100)} %`})),'Aucune activité enregistrée cette semaine.')}</div>
+    <div class="card"><h2>Modèles les plus performants</h2><p class="hint">Les 6 premiers de la semaine, par chiffre d'affaires.</p>
+      ${hbars(top.map(m=>({l:m.n,v:m.ca,r:fmt(m.ca)})),'Aucune activité enregistrée cette semaine.')}</div>
   </div>`;
 }
 
@@ -294,7 +315,7 @@ async function show(){
       profiles=p.data||[me]; rows=e;
     }else rows=await allEntries(iso(hStart),to,me.id);
   }catch(err){
-    $('app').innerHTML=`<div class="card"><div class="msg">Erreur de chargement : ${esc(err.message)}</div><button onclick="show()">Réessayer</button></div>`;
+    $('app').innerHTML=`<div class="card"><div class="msg">Chargement impossible : ${esc(err.message)}</div><button onclick="show()">Réessayer</button></div>`;
     return;
   }
 
@@ -316,7 +337,7 @@ async function show(){
     const day=u[r.day]=u[r.day]||{ca:0,models:[]};
     const ca=Number(r.ca||0);
     day.ca+=ca;
-    day.models.push({model_name:r.model_name,ca});
+    day.models.push({model_name:r.model_name,ca,detail:r.detail||''});
   });
   const mine=byU[vu.id]||{};
 
@@ -334,66 +355,68 @@ async function show(){
       ${days.map(d=>{
         const r=u[iso(d)];
         const details=r&&r.models.length
-          ?`<small>${r.models.map(m=>`${esc(m.model_name)} : ${fmt(m.ca)}`).join('<br>')}</small>`:'';
+          ?`<small>${r.models.map(m=>`${esc(m.model_name)} : ${fmt(m.ca)}${m.detail?' — '+esc(m.detail):''}`).join('<br>')}</small>`:'';
         return `<td>${r?fmt(r.ca)+details:''}</td>`;
       }).join('')}
       <td><b>${fmt(ca)}</b></td><td>${pct(p.commission)}</td><td>${fmt(co)}</td><td>${fmt(ar)}</td></tr>`;
     }).join('');
-    recap=`<div class="card"><h2>Tous les rapports — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
-    <p class="hint">Clique sur un nom pour ouvrir et modifier son rapport.</p><table>
+    recap=`<div class="card"><h2>Synthèse hebdomadaire — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
+    <p class="hint">Cliquez sur le nom d'un agent pour consulter et modifier son rapport.</p><table>
     <tr><th>Agent</th>${days.map(d=>`<th>${dayShort(d)}</th>`).join('')}<th>CA</th><th>Taux</th><th>Commission</th><th>Ar</th></tr>${body}
     <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td><td>${fmt(gAr)}</td></tr></tfoot></table></div>`;
   }
 
   if(admin && t==='team'){
-    team=`<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Mobile Money</th><th>Taux</th><th>Rôle</th></tr>
+    team=`<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
     ${profiles.map(p=>{
       const m=mmBy[p.id];
       return `<tr><td>${esc(p.full_name||'(sans nom)')}</td><td>${esc(p.email)}</td>
-      <td>${m&&m.number?esc(m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">—</span>'}</td>
+      <td>${m&&m.number?esc(m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
       <td><select onchange="upd('${p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(p.commission))}</select></td>
-      <td><select ${p.id===me.id?'disabled title="Tu ne peux pas changer ton propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
+      <td><select ${p.id===me.id?'disabled title="Vous ne pouvez pas modifier votre propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
       <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`;
     }).join('')}</table>
-    <h2 style="margin-top:18px">Créer un compte agent</h2><div class="row">
-      <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 min.)">
+    <h2 style="margin-top:18px">Ajouter un agent</h2><div class="row">
+      <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Adresse email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 caractères min.)">
       <select id="ng_tx" title="Taux de commission" aria-label="Taux de commission">${rateOpts(5)}</select><button class="p" onclick="createAgent()">Créer le compte</button></div>
     <div id="ng_msg" class="ok">${esc(notice)}</div></div>`;
     notice='';
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Dashboard'],['reports','📝 Rapports'],['team','👥 Équipe']]
+  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['reports','📝 Rapports'],['team','👥 Équipe']]
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
 
   const weekBar=t==='team'?'':`<div class="card"><div class="row">
     <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
     <input type="date" value="${from}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
     <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
-    <span style="color:var(--mute)">${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
+    <span style="color:var(--mute)">Semaine du ${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
 
+  const first=esc((vu.full_name||vu.email||'').split(/[ @]/)[0]);
   const report=t!=='reports'?'':`${recap}
-  <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Shift report — ${esc(vu.full_name||vu.email)}</h2>
+  <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
   ${admin?`<select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select>`:''}</div>
-  <p class="hello" style="margin-top:10px">${greet()} <b>${esc((vu.full_name||vu.email||'').split(/[ @]/)[0])}</b> 👋 Bienvenue sur ton shift report !</p>
-  <p class="hint">Saisis une ligne par modèle au format « nom du modèle | CA ». Exemple : Modèle A | 250. Le CA du jour est calculé automatiquement. Pour un jour sans activité, laisse le champ vide.</p>
-  <table><tr><th>Jour</th><th>Modèles et CA</th><th>CA du jour</th></tr>
+  <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> 👋 Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
+  <p class="hint">Pour chaque jour, ajoutez une ligne par modèle : modèle, chiffre d'affaires et détail éventuel. Les totaux se calculent automatiquement. Laissez un jour vide en l'absence d'activité.</p>
+  ${admin&&!HAS_DETAIL?`<p class="hint">Administrateur : pour activer le champ « Détail », exécutez dans Supabase (SQL Editor) <code>alter table model_entries add column detail text;</code> puis rechargez la page.</p>`:''}
+  <div class="lh${HAS_DETAIL?'':' nd'}"><span>Modèle</span><span>Chiffre d'affaires</span>${HAS_DETAIL?'<span>Détail</span>':''}<span></span></div>
   ${days.map(d=>{
     const k=iso(d), r=mine[k]||{models:[]};
-    const text=(r.models||[]).map(m=>`${m.model_name} | ${m.ca}`).join('\n');
-    return `<tr><td style="text-transform:capitalize">${dayName(d)}</td>
-      <td><textarea class="t" id="mo_${k}" oninput="calc()" placeholder="Modèle A | 250&#10;Modèle B | 75">${esc(text)}</textarea></td>
-      <td><b id="dayca_${k}">0</b></td></tr>`;
-  }).join('')}</table>
+    return `<div class="day"><div class="dh"><span>${dayName(d)}</span><span>CA du jour : <b id="dayca_${k}">0</b></span></div>
+      <div id="ln_${k}">${r.models.map(lineHtml).join('')}</div>
+      <button type="button" onclick="addLine('${k}')">＋ Ajouter un modèle</button></div>`;
+  }).join('')}
   <div class="tot">
     <div><span>CA de la semaine</span><b id="tca">0</b></div>
-    <div><span>Taux</span><select id="rate" onchange="calc()" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select></div>
+    <div><span>Taux de commission</span><select id="rate" onchange="calc()" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select></div>
     <div><span>Commission</span><b id="tco">0</b></div>
-    <div><span>Ar</span><b id="tar">0</b></div>
+    <div><span>Commission (Ar)</span><b id="tar">0</b></div>
   </div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
   ${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne)}`;
 
-  $('app').innerHTML=`<header><h1>Shift Report</h1><div class="row"><span>${esc(me.full_name||me.email)} (${me.role})</span><button onclick="logout()">Déconnexion</button></div></header>
+  $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
+  <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
   ${nav}${weekBar}${dash}${report}${team}`;
   if(t==='reports') calc();
 }
@@ -412,14 +435,14 @@ function statsCard(vu,rows,hStart){
   const co=tot*vu.commission;
   const evo=evoOf(weeks[STAT_WEEKS-1].ca,weeks[STAT_WEEKS-2].ca);
 
-  return `<div class="card"><h2>Statistiques — ${esc(vu.full_name||vu.email)}</h2>
-  <p class="hint">Les ${STAT_WEEKS} dernières semaines jusqu'à la semaine affichée.</p>
+  return `<div class="card"><h2>Performance — ${esc(vu.full_name||vu.email)}</h2>
+  <p class="hint">Évolution sur les ${STAT_WEEKS} dernières semaines, jusqu'à la semaine affichée.</p>
   <div class="tiles">
-    <div><span>CA sur ${STAT_WEEKS} semaines</span><b>${fmt(tot)}</b></div>
-    <div><span>Moyenne / semaine active</span><b>${fmt(active?tot/active:0)}</b></div>
-    <div><span>Cette semaine vs précédente</span><b class="${evoCls(evo)}">${evoTxt(evo)}</b></div>
-    <div><span>Meilleur jour</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
-    <div><span>Jours travaillés</span><b>${worked}</b></div>
+    <div><span>CA cumulé (${STAT_WEEKS} semaines)</span><b>${fmt(tot)}</b></div>
+    <div><span>Moyenne par semaine active</span><b>${fmt(active?tot/active:0)}</b></div>
+    <div><span>Évolution hebdomadaire</span><b class="${evoCls(evo)}">${evoTxt(evo)}</b></div>
+    <div><span>Meilleure journée</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
+    <div><span>Jours d'activité</span><b>${worked}</b></div>
     <div><span>Commission estimée</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>
   </div>${bars(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
 }
@@ -427,13 +450,13 @@ function statsCard(vu,rows,hStart){
 function mmCard(vu,m){
   m=m||{};
   const ops=MM_OPS.includes(m.operator)||!m.operator?MM_OPS:[...MM_OPS,m.operator];
-  return `<div class="card mm"><h2>Mobile Money</h2>
-  <p class="hint">Indique le numéro sur lequel tu veux recevoir ta commission.</p>
+  return `<div class="card mm"><h2>Versement des commissions (Mobile Money)</h2>
+  <p class="hint">Numéro sur lequel la commission doit être versée.</p>
   <div class="row" style="align-items:flex-end">
     <label>Opérateur<select id="mm_op"><option value="">— Choisir —</option>${ops.map(o=>`<option ${o===m.operator?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
     <label>Numéro<input id="mm_nb" type="tel" inputmode="tel" placeholder="034 00 000 00" value="${esc(m.number||'')}"></label>
-    <label>Nom du titulaire<input id="mm_ho" placeholder="Nom sur le compte" value="${esc(m.holder||'')}"></label>
-    <button class="p" onclick="saveMM('${vu.id}')">Enregistrer le numéro</button></div>
+    <label>Titulaire du compte<input id="mm_ho" placeholder="Nom figurant sur le compte" value="${esc(m.holder||'')}"></label>
+    <button class="p" onclick="saveMM('${vu.id}')">Enregistrer</button></div>
   <div id="mm_msg"></div></div>`;
 }
 
@@ -441,7 +464,7 @@ async function saveMM(uid){
   const el=$('mm_msg');
   try{
     await mmApi('PUT','',{user_id:uid,operator:$('mm_op').value,number:$('mm_nb').value,holder:$('mm_ho').value});
-    el.className='ok'; el.textContent='Numéro Mobile Money enregistré.';
+    el.className='ok'; el.textContent='Coordonnées Mobile Money enregistrées.';
   }catch(e){
     el.className='msg'; el.textContent='Erreur : '+e.message;
   }
@@ -452,7 +475,7 @@ function calc(){
   days.forEach(d=>{
     const k=iso(d);
     let daily=0;
-    try{ daily=parseModels($('mo_'+k).value).reduce((s,m)=>s+m.ca,0); }catch(_){}
+    $('ln_'+k).querySelectorAll('.c').forEach(i=>{ const v=num(i.value); if(i.value.trim() && Number.isFinite(v) && v>0) daily+=v; });
     ca+=daily;
     $('dayca_'+k).textContent=fmt(daily);
   });
@@ -464,58 +487,41 @@ function calc(){
 
 async function save(uid){
   const status=$('sm');
+  const fail=t=>{ status.className='msg'; status.textContent=t; };
   const v=+$('rate').value;
-  if(!(v>0&&v<=100)){
-    status.className='msg';
-    status.textContent='Choisis un taux de commission dans la liste.';
-    return;
-  }
+  if(!(v>0&&v<=100)) return fail('Veuillez choisir un taux de commission dans la liste.');
   let desired=[];
-  try{
-    days.forEach(d=>{
-      const k=iso(d);
-      parseModels($('mo_'+k).value).forEach(m=>{
-        desired.push({user_id:uid,day:k,model_name:m.model_name,ca:m.ca});
+  for(const d of days){
+    const k=iso(d);
+    try{
+      readDay(k).forEach(m=>{
+        const row={user_id:uid,day:k,model_name:m.model_name,ca:m.ca};
+        if(HAS_DETAIL) row.detail=m.detail||null;
+        desired.push(row);
       });
-    });
-  }catch(e){
-    status.className='msg';
-    status.textContent=e.message;
-    return;
+    }catch(e){ return fail(`${dayName(d)} : ${e.message}`); }
   }
   const from=iso(days[0]),to=iso(days[6]);
   const {data:existing,error:readError}=await sb.from('model_entries')
     .select('day,model_name').eq('user_id',uid).gte('day',from).lte('day',to);
-  if(readError){
-    status.className='msg';
-    status.textContent='Erreur : '+readError.message;
-    return;
-  }
+  if(readError) return fail('Erreur : '+readError.message);
   if(desired.length){
     const {error}=await sb.from('model_entries').upsert(desired,{onConflict:'user_id,day,model_name'});
-    if(error){
-      status.className='msg';
-      status.textContent='Erreur : '+error.message;
-      return;
-    }
+    if(error) return fail('Erreur : '+error.message);
   }
   const wanted=new Set(desired.map(r=>`${r.day}\u0000${r.model_name}`));
   const stale=(existing||[]).filter(r=>!wanted.has(`${r.day}\u0000${r.model_name}`));
   for(const r of stale){
     const {error}=await sb.from('model_entries').delete()
       .eq('user_id',uid).eq('day',r.day).eq('model_name',r.model_name);
-    if(error){
-      status.className='msg';
-      status.textContent='Erreur : '+error.message;
-      return;
-    }
+    if(error) return fail('Erreur : '+error.message);
   }
   const {error:profileError}=await sb.from('profiles').update({commission:v/100}).eq('id',uid);
   await show();
   const st=$('sm');
   if(st){
     st.className=profileError?'msg':'ok';
-    st.textContent=profileError?'Rapport enregistré, mais erreur de taux : '+profileError.message:'Enregistré.';
+    st.textContent=profileError?'Rapport enregistré, mais le taux n\'a pas pu être mis à jour : '+profileError.message:'Rapport enregistré avec succès.';
   }
 }
 
@@ -530,11 +536,11 @@ async function createAgent(){
   const tx=(+$('ng_tx').value||5)/100, m=$('ng_msg');
   m.className='msg';
   if(!(tx>=0&&tx<=1)){
-    m.textContent='Le taux doit être un pourcentage entre 0 et 100.';
+    m.textContent='Le taux doit être un pourcentage compris entre 0 et 100.';
     return;
   }
   if(!nm||!em||pw.length<6){
-    m.textContent='Renseigne le nom, l’email et un mot de passe de 6 caractères minimum.';
+    m.textContent='Veuillez renseigner le nom, l’email et un mot de passe de 6 caractères minimum.';
     return;
   }
   const {data,error}=await sb2.auth.signUp({email:em,password:pw,options:{data:{full_name:nm}}});
@@ -543,12 +549,12 @@ async function createAgent(){
     return;
   }
   if(!data.user||(data.user.identities&&data.user.identities.length===0)){
-    m.textContent='Cet email est déjà utilisé.';
+    m.textContent='Cette adresse email est déjà utilisée.';
     return;
   }
   await sb.from('profiles').update({commission:tx}).eq('id',data.user.id);
-  notice='Compte créé pour '+nm+'. Il se connecte avec cet email et ce mot de passe.'
-    +(data.session?'':' Attention : la confirmation par email est active dans Supabase, l’agent doit confirmer son email (ou désactive « Confirm email »).');
+  notice='Compte créé pour '+nm+'. L’agent se connecte avec cet email et ce mot de passe.'
+    +(data.session?'':' Attention : la confirmation par email est active dans Supabase. L’agent doit confirmer son email, ou désactivez « Confirm email » dans Supabase.');
   show();
 }
 
