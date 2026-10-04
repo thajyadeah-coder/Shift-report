@@ -5,8 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Shift Report — Suivi des ventes et commissions</title>
 <style>
-:root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--acc2:#6fd3b9;--card:#fff;--err:#b3261e}
-@media(prefers-color-scheme:dark){:root{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--acc2:#2f8f78;--card:#1c242c;--err:#ff8a80}}
+:root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--acc2:#6fd3b9;--card:#fff;--err:#b3261e;--warn:#c77700}
+@media(prefers-color-scheme:dark){:root{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--acc2:#2f8f78;--card:#1c242c;--err:#ff8a80;--warn:#f0b24a}}
 *{box-sizing:border-box}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:16px}
@@ -49,6 +49,10 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .ln input{min-width:0;width:100%}.ln button{padding:8px 0}
 .lh{color:var(--mute);font-size:13px;font-weight:600;margin-bottom:8px}
 .bd{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(31,111,92,.15);color:var(--acc)}.bd.off{background:rgba(150,150,150,.2);color:var(--mute)}
+.bd.warn{background:rgba(199,119,0,.15);color:var(--warn)}
+.tiles .bd{display:inline-block;font-size:12px;color:var(--acc)}.tiles .bd.warn{color:var(--warn)}
+.pg{display:block;height:10px;border-radius:5px;background:var(--line);min-width:90px;margin:6px 0}
+.pg u{display:block;height:100%;border-radius:5px;background:var(--warn)}.pg.ok u{background:var(--acc)}
 .mm label{display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px}
 @media(max-width:760px){.g2{grid-template-columns:1fr}.lh{display:none}
 .ln,.ln.nd{grid-template-columns:1fr 1fr 40px}.ln button{order:3}.ln .d{order:4;grid-column:1/-1}}
@@ -120,7 +124,7 @@ async function mmApi(method, q, body){
 
 // Saisie : une ligne = un modèle, un chiffre d'affaires, un détail facultatif
 const lineHtml = (m={}) => `<div class="ln${HAS_DETAIL?'':' nd'}">
-  <input class="m" placeholder="Modèle" aria-label="Modèle" value="${esc(m.model_name)}" oninput="calc()">
+  <input class="m" list="mdl" placeholder="Modèle" aria-label="Modèle" value="${esc(m.model_name)}" oninput="calc()">
   <input class="c" inputmode="decimal" placeholder="CA" aria-label="Chiffre d'affaires" value="${m.ca ?? ''}" oninput="calc()">
   ${HAS_DETAIL?`<input class="d" maxlength="200" placeholder="Détail (facultatif)" aria-label="Détail" value="${esc(m.detail)}">`:''}
   <button type="button" onclick="delLine(this)" aria-label="Supprimer la ligne" title="Supprimer">✕</button></div>`;
@@ -207,6 +211,55 @@ async function setPw(){
   recovering=false; history.replaceState(null,'',location.pathname); start();
 }
 sb.auth.onAuthStateChange(ev=>{ if(ev==='PASSWORD_RECOVERY') recoveryView(); });
+
+let lastRefresh = new Date();
+const pbar = (v,g) => `<i class="pg${g>0&&v>=g?' ok':''}"><u style="width:${g>0?Math.min(100,v/g*100):0}%"></u></i>`;
+const stBadge = (v,g) => g>0&&v>=g ? '<span class="bd">✔ Atteint</span>' : `<span class="bd warn">En cours · reste ${fmt(Math.max(g-v,0))}</span>`;
+const mkey = n => String(n).trim().toLocaleLowerCase('fr');
+function objData(goals,rows,todayRows){
+  const from=iso(days[0]),to=iso(days[6]);
+  const wk={},td={}; let wTot=0,tTot=0;
+  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
+  todayRows.forEach(r=>{ const ca=Number(r.ca||0); tTot+=ca; td[mkey(r.model_name)]=(td[mkey(r.model_name)]||0)+ca; });
+  const dayGoal=goals.reduce((s,g)=>s+Number(g.daily_goal||0),0);
+  return {wk,td,wTot,tTot,dayGoal,weekGoal:dayGoal*7};
+}
+function objTiles(o){
+  return `<div class="tiles">
+    <div class="k"><span>Objectif agence — par jour</span><b>${fmt(o.dayGoal)}</b><span>Somme des objectifs des modèles</span></div>
+    <div class="k"><span>CA d'aujourd'hui</span><b>${fmt(o.tTot)}</b>${pbar(o.tTot,o.dayGoal)}${stBadge(o.tTot,o.dayGoal)}</div>
+    <div class="k"><span>Objectif agence — semaine</span><b>${fmt(o.weekGoal)}</b><span>${fmt(o.dayGoal)} × 7 jours</span></div>
+    <div class="k"><span>CA de la semaine affichée</span><b>${fmt(o.wTot)}</b>${pbar(o.wTot,o.weekGoal)}${stBadge(o.wTot,o.weekGoal)}</div>
+  </div>
+  <p class="hint">Actualisation automatique toutes les 30 secondes · dernière mise à jour à ${lastRefresh.toLocaleTimeString('fr-FR')}</p>`;
+}
+function objSummary(goals,rows,tr){
+  if(goals===null) return '';
+  const o=objData(goals,rows,tr);
+  return o.dayGoal ? objTiles(o) : '<p class="hint">Aucun objectif défini : ajoutez vos modèles dans l\'onglet Objectifs.</p>';
+}
+async function addModel(){
+  const nm=$('md_nm').value.trim(), raw=$('md_g').value.trim(), g=num(raw), m=$('md_msg');
+  m.className='msg';
+  if(!nm) return m.textContent='Indiquez le nom du modèle.';
+  if(!raw||!Number.isFinite(g)||g<0) return m.textContent='Indiquez un objectif journalier valide (nombre positif).';
+  const {error}=await sb.from('models').upsert({name:nm,daily_goal:g},{onConflict:'name'});
+  if(error) return m.textContent='Erreur : '+error.message;
+  notice='Modèle « '+nm+' » enregistré.'; show();
+}
+async function setGoal(id,v){
+  const g=num(v);
+  if(String(v).trim()===''||!Number.isFinite(g)||g<0) return show();
+  const {error}=await sb.from('models').update({daily_goal:g}).eq('id',id);
+  if(error) alert('Erreur : '+error.message);
+  show();
+}
+async function delModel(b){
+  if(!confirm('Retirer le modèle « '+b.dataset.n+' » des objectifs ? Les saisies déjà enregistrées ne sont pas supprimées.')) return;
+  const {error}=await sb.from('models').delete().eq('id',b.dataset.id);
+  if(error) alert('Erreur : '+error.message);
+  show();
+}
 
 const greet = () => new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
 let me = null, viewId = null, tab = null, weekStart = monday(new Date()), days = [], notice = '';
@@ -395,6 +448,11 @@ async function show(){
     return;
   }
 
+  const [md,tr]=await Promise.all([
+    sb.from('models').select('*').order('name'),
+    admin ? allEntries(iso(new Date()),iso(new Date())).catch(()=>[]) : Promise.resolve([])
+  ]);
+  const goals=md.error?null:(md.data||[]);
   if(!admin || !profiles.find(p=>p.id===viewId)) viewId=me.id;
   if(admin&&t==='agent'){
     const ags=profiles.filter(p=>p.role!=='admin');
@@ -427,7 +485,7 @@ async function show(){
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
   let dash='', team='', access='';
-  if(admin && t==='dash') dash=dashCard(profiles,rows,hStart);
+  if(admin && t==='dash') dash=objSummary(goals,rows,tr)+dashCard(profiles,rows,hStart);
 
   let agent='';
   if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+statsCard(vu,hist,hStart);
@@ -460,7 +518,32 @@ async function show(){
     <p class="hint" style="margin-top:10px">Pour que le lien ramène l'agent sur cette page, renseignez l'adresse de votre site dans Supabase : Authentication › URL Configuration › Site URL.</p></div>`;
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['team','👥 Équipe'],['access','🔑 Accès']]
+  let goalsTab='';
+  if(admin && t==='goals'){
+    const o=objData(goals||[],rows,tr);
+    const trs=(goals||[]).map(g=>{
+      const k=mkey(g.name), gl=Number(g.daily_goal||0), td=o.td[k]||0, w=o.wk[k]||0;
+      return `<tr><td>${esc(g.name)}</td>
+        <td><input type="text" inputmode="decimal" style="width:100px" value="${gl}" onchange="setGoal('${g.id}',this.value)" aria-label="Objectif journalier"></td>
+        <td>${fmt(td)}</td><td style="min-width:130px">${gl>0?pbar(td,gl):''}</td><td>${gl>0?stBadge(td,gl):'—'}</td>
+        <td>${fmt(w)} / ${fmt(gl*7)}</td>
+        <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
+    }).join('');
+    goalsTab=`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
+    <p class="hint">Le nom du modèle doit être identique à celui saisi par les agents (ils le retrouvent dans la liste de suggestions). Réutiliser un nom existant met à jour son objectif.</p>
+    <div class="row"><input id="md_nm" placeholder="Nom du modèle"><input id="md_g" inputmode="decimal" placeholder="Objectif journalier (CA)"><button class="p" onclick="addModel()">Ajouter le modèle</button></div>
+    <div id="md_msg" class="ok">${esc(notice)}</div></div>`;
+    notice='';
+    goalsTab+= goals===null
+      ? `<div class="card"><p class="msg">Table « models » absente : exécutez le SQL fourni dans Supabase pour activer les objectifs.</p></div>`
+      : `${o.dayGoal?objTiles(o):''}
+    <div class="card"><h2>Suivi des objectifs par modèle</h2>
+    <p class="hint">Le CA du jour correspond à la date d'aujourd'hui ; le CA de la semaine à la semaine affichée (objectif hebdomadaire = objectif journalier × 7).</p>
+    ${trs?`<table><tr><th>Modèle</th><th>Objectif / jour</th><th>CA aujourd'hui</th><th>Progression</th><th>Statut</th><th>Semaine : CA / objectif</th><th></th></tr>${trs}
+    <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?stBadge(o.tTot,o.dayGoal):'—'}</td><td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
+  }
+
+  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['team','👥 Équipe'],['access','🔑 Accès']]
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
 
   const weekBar=(t==='team'||t==='access')?'':`<div class="card"><div class="row">
@@ -470,7 +553,7 @@ async function show(){
     <span style="color:var(--mute)">Semaine du ${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
 
   const first=esc((vu.full_name||vu.email||'').split(/[ @]/)[0]);
-  const report=(admin||t!=='reports')?'':`
+  const report=(admin||t!=='reports')?'':`<datalist id="mdl">${(goals||[]).map(g=>`<option value="${esc(g.name)}">`).join('')}</datalist>
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
   </div>
   <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> 👋 Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
@@ -486,9 +569,10 @@ async function show(){
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
   ${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne)}`;
 
+  lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}${weekBar}${dash}${agent}${report}${team}${access}`;
+  ${nav}${weekBar}${dash}${agent}${report}${goalsTab}${team}${access}`;
   if(t==='reports'&&!admin) calc();
 }
 
@@ -623,6 +707,12 @@ async function createAgent(){
     +(data.session?'':' Attention : la confirmation par email est active dans Supabase. L’agent doit confirmer son email, ou désactivez « Confirm email » dans Supabase.');
   show();
 }
+
+// Actualisation automatique (suivi des objectifs en quasi temps réel)
+setInterval(()=>{
+  const a=document.activeElement;
+  if(me && me.role==='admin' && (tab==='dash'||tab==='goals') && !recovering && !(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) show();
+},30000);
 
 start();
 </script>
