@@ -59,13 +59,25 @@ const dayShort = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit
 // Statistiques : nombre de semaines affichées dans le graphique
 const STAT_WEEKS = 8;
 const MM_OPS = ['MVola','Orange Money','Airtel Money'];
-// Appel à la fonction Netlify qui stocke les numéros Mobile Money
+// Numéros Mobile Money stockés dans la table Supabase "mobile_money" (voir supabase/mobile_money.sql).
+// L'ancienne route /api/mobile-money (fonction Netlify) n'existe pas sur l'hébergement actuel → 404.
+const mmRow = r => r && {userId:r.user_id, operator:r.operator, number:r.number, holder:r.holder, updatedAt:r.updated_at};
 async function mmApi(method, q, body){
+  if(method === 'GET'){
+    const uid = q ? new URLSearchParams(q).get('user_id') : null;
+    let req = sb.from('mobile_money').select('*');
+    if(uid) req = req.eq('user_id', uid);
+    const {data, error} = await req;
+    if(error) throw new Error(error.message);
+    return uid ? mmRow(data[0]) || null : data.map(mmRow);
+  }
   const {data:{session}} = await sb.auth.getSession();
-  const r = await fetch('/api/mobile-money'+(q||''), {method, headers:{'content-type':'application/json', authorization:'Bearer '+(session?session.access_token:'')}, body: body?JSON.stringify(body):undefined});
-  const j = await r.json().catch(()=>null);
-  if(!r.ok) throw new Error((j&&j.error)||('HTTP '+r.status));
-  return j;
+  const number = String(body.number||'').trim().slice(0,30);
+  if(number && !/^\+?[0-9 ]{6,20}$/.test(number)) throw new Error('Numéro invalide (chiffres uniquement, + autorisé).');
+  const row = {user_id: body.user_id || session?.user?.id, operator:String(body.operator||'').trim().slice(0,40), number, holder:String(body.holder||'').trim().slice(0,80), updated_at:new Date().toISOString()};
+  const {data, error} = await sb.from('mobile_money').upsert(row, {onConflict:'user_id'}).select().single();
+  if(error) throw new Error(error.message);
+  return mmRow(data);
 }
 const greet = () => new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
 let me = null, viewId = null, weekStart = monday(new Date()), days = [], notice = '';
