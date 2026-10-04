@@ -218,11 +218,28 @@ const stBadge = (v,g) => g>0&&v>=g ? '<span class="bd">✔ Atteint</span>' : `<s
 const mkey = n => String(n).trim().toLocaleLowerCase('fr');
 function objData(goals,rows,todayRows){
   const from=iso(days[0]),to=iso(days[6]);
-  const wk={},td={}; let wTot=0,tTot=0;
-  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
+  const wk={},td={}; let wTot=0,tTot=0,doneCA=0;
+  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; if(r.day<iso(new Date())) doneCA+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
   todayRows.forEach(r=>{ const ca=Number(r.ca||0); tTot+=ca; td[mkey(r.model_name)]=(td[mkey(r.model_name)]||0)+ca; });
   const dayGoal=goals.reduce((s,g)=>s+Number(g.daily_goal||0),0);
-  return {wk,td,wTot,tTot,dayGoal,weekGoal:dayGoal*7};
+  return {wk,td,wTot,tTot,doneCA,dayGoal,weekGoal:dayGoal*7};
+}
+function catchUp(o){
+  if(!o.dayGoal) return '';
+  const today=iso(new Date());
+  const done=days.filter(d=>iso(d)<today).length, rem=days.filter(d=>iso(d)>=today).length;
+  const gap=o.dayGoal*done-o.doneCA, left=Math.max(o.weekGoal-o.wTot,0), need=rem>0?left/rem:null, late=gap>0;
+  const msg = left===0 ? '✔ L\'objectif hebdomadaire de l\'agence est atteint.'
+    : rem===0 ? `Semaine terminée : ${fmt(left)} d'objectif n'ont pas été réalisés.`
+    : `Pour atteindre l'objectif de la semaine, il faut réaliser ${fmt(left)} sur les ${rem} jour${rem>1?'s':''} restant${rem>1?'s':''}, soit ${fmt(need)} par jour (aujourd'hui inclus).`;
+  return `<div class="card"><h2>Objectif de l'agence à rattraper</h2>
+  <div class="tiles" style="margin-bottom:8px">
+    <div class="k"><span>${late?'Retard à rattraper':'Avance'} (jours terminés)</span><b class="${late?'down':'up'}">${fmt(Math.abs(gap))}</b><span>${done} jour${done>1?'s':''} terminé${done>1?'s':''} × ${fmt(o.dayGoal)}</span></div>
+    <div class="k"><span>Reste à réaliser (semaine)</span><b>${fmt(left)}</b>${pbar(o.wTot,o.weekGoal)}</div>
+    <div class="k"><span>Jours restants</span><b>${rem}</b></div>
+    <div class="k"><span>CA nécessaire / jour</span><b>${need===null?'—':fmt(need)}</b><span>objectif : ${fmt(o.dayGoal)} / jour</span></div>
+  </div>
+  <p class="hint" style="margin:0">${msg}</p></div>`;
 }
 function objTiles(o){
   return `<div class="tiles">
@@ -231,6 +248,7 @@ function objTiles(o){
     <div class="k"><span>Objectif agence — semaine</span><b>${fmt(o.weekGoal)}</b><span>${fmt(o.dayGoal)} × 7 jours</span></div>
     <div class="k"><span>CA de la semaine affichée</span><b>${fmt(o.wTot)}</b>${pbar(o.wTot,o.weekGoal)}${stBadge(o.wTot,o.weekGoal)}</div>
   </div>
+  ${catchUp(o)}
   <p class="hint">Actualisation automatique toutes les 30 secondes · dernière mise à jour à ${lastRefresh.toLocaleTimeString('fr-FR')}</p>`;
 }
 function objSummary(goals,rows,tr){
