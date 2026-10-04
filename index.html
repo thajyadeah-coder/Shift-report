@@ -20,6 +20,7 @@ button:focus-visible,input:focus-visible,select:focus-visible{outline:2px solid 
 table{border-collapse:collapse;width:100%}th,td{text-align:left;padding:6px 8px;border-bottom:1px solid var(--line);white-space:nowrap;vertical-align:top}
 th{color:var(--mute);font-weight:600}tfoot td{font-weight:700}
 td small{display:block;color:var(--mute);white-space:normal;max-width:130px}
+td small.dt{font-style:italic;opacity:.85}
 .row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
 .sw{display:inline-flex;align-items:center;gap:6px;cursor:pointer;color:var(--mute)}.sw input{width:auto;margin:0}
 .tot{display:flex;gap:18px;flex-wrap:wrap;margin-top:12px}.tot div span{display:block;color:var(--mute);font-size:13px}.tot b{font-size:18px}
@@ -50,6 +51,11 @@ const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const sb2 = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'sr-tmp'}});
 const $ = id => document.getElementById(id);
 const esc = s => String(s ?? '').replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+// Modèle et détail sont stockés ensemble dans la colonne « modelle » : "Modèle ¦ Détail"
+const MO_SEP = ' ¦ ';
+const splitMo = s => { s = String(s||''); const i = s.indexOf(MO_SEP); return i<0 ? {m:s.trim(), d:''} : {m:s.slice(0,i).trim(), d:s.slice(i+MO_SEP.length).trim()}; };
+const joinMo = (m, d) => (d ? m + MO_SEP + d : m) || null;
+const moCell = s => { const {m,d} = splitMo(s); return (m?`<small>${esc(m)}</small>`:'') + (d?`<small class="dt">${esc(d)}</small>`:''); };
 const iso = d => d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
 const monday = d => { const x = new Date(d); x.setDate(x.getDate() - (x.getDay()+6)%7); x.setHours(0,0,0,0); return x; };
 const fmt = n => (Math.round(n*100)/100).toLocaleString('fr-FR');
@@ -178,7 +184,7 @@ async function show(){
       const u = byU[p.id] || {}; const ca = days.reduce((s,d)=>s+Number((u[iso(d)]||{}).ca||0),0);
       const co = ca*p.commission, ar = co*AR_MULT; gCa+=ca; gCo+=co; gAr+=ar;
       return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||p.email)}</a></td>
-      ${days.map(d=>{const r=u[iso(d)];return `<td>${r?fmt(r.ca)+(r.modelle?`<small>${esc(r.modelle)}</small>`:''):''}</td>`}).join('')}
+      ${days.map(d=>{const r=u[iso(d)];return `<td>${r?fmt(r.ca)+moCell(r.modelle):''}</td>`}).join('')}
       <td><b>${fmt(ca)}</b></td><td>${pct(p.commission)}</td><td>${fmt(co)}</td>${arC(ar)}</tr>`;
     }).join('');
     recap = `<div class="card"><h2>Tous les rapports — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
@@ -202,11 +208,13 @@ async function show(){
   ${recap}
   <div class="card"><h2>Shift report — ${esc(vu.full_name||vu.email)}</h2>
   <p class="hello">${greet()} <b>${esc((vu.full_name||vu.email||'').split(/[ @]/)[0])}</b> 👋 Bienvenue sur ton shift report !</p>
-  <p class="hint">Prends quelques instants pour bien remplir ton formulaire : note le total de chaque journée dans « CA » et le détail dans « Modelle » (ex. E250,C75, nom du modèle, OFF…), vérifie ton taux de commission puis clique sur « Enregistrer la semaine ». Merci et bon shift !</p>
-  <table><tr><th>Jour</th><th>CA</th><th>Modelle</th></tr>
-  ${days.map(d=>{const k=iso(d),r=mine[k]||{};return `<tr><td style="text-transform:capitalize">${dayName(d)}</td>
+  <p class="hint">Prends quelques instants pour bien remplir ton formulaire : note le total de chaque journée dans « CA » le nom du modèle avec qui tu as travaillé dans « Modèle », et le détail de la journée dans « Détail » (ex. E250, C75, OFF…) — ce sont deux champs différents. Vérifie ensuite ton taux de commission puis clique sur « Enregistrer la semaine ». Merci et bon shift !</p>
+  <table><tr><th>Jour</th><th>CA</th><th>Modèle</th><th>Détail</th></tr>
+  ${days.map(d=>{const k=iso(d),r=mine[k]||{},mo=splitMo(r.modelle);return `<tr><td style="text-transform:capitalize">${dayName(d)}</td>
     <td><input type="number" step="any" min="0" id="ca_${k}" value="${r.ca??''}" oninput="calc()"></td>
-    <td><input class="t" id="mo_${k}" value="${esc(r.modelle||'')}" placeholder="Détail / modèle"></td></tr>`}).join('')}</table>
+    <td><input class="t" id="mo_${k}" value="${esc(mo.m)}" placeholder="Nom du modèle" aria-label="Modèle du ${dayName(d)}" list="mo_list"></td>
+    <td><input class="t" id="dt_${k}" value="${esc(mo.d)}" placeholder="Ex. E250, C75, OFF" aria-label="Détail du ${dayName(d)}"></td></tr>`}).join('')}</table>
+  <datalist id="mo_list">${[...new Set(all.map(r=>splitMo(r.modelle).m).filter(Boolean))].sort().map(m=>`<option value="${esc(m)}">`).join('')}</datalist>
   <div class="tot">
     <div><span>CA de la semaine</span><b id="tca">0</b></div><div><span>Taux</span><select id="rate" onchange="calc()" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select></div>
     <div><span>Commission</span><b id="tco">0</b></div>${showAr?'<div><span>Ar</span><b id="tar">0</b></div>':''}</div>
@@ -250,7 +258,7 @@ const DASH_WEEKS = 12;
 async function fetchAllEntries(){
   const out = [];
   for(let i=0;;i+=1000){
-    const {data,error} = await sb.from('entries').select('user_id,day,ca').order('day').range(i,i+999);
+    const {data,error} = await sb.from('entries').select('user_id,day,ca,modelle').order('day').range(i,i+999);
     if(error) throw new Error(error.message);
     out.push(...data); if(data.length < 1000) return out;
   }
@@ -291,10 +299,21 @@ async function showStats(){
   const S = {};
   profiles.forEach(p=>{ S[p.id] = {p, wCa:0, wDays:0, pCa:0, ca:0, days:0, weeks:new Set(), best:0, bestDay:null, last:null}; });
   const allWeeks = new Set(); let firstDay = null;
+  const M = {};
+  const mStat = key => M[key] = M[key] || {name:key, wCa:0, wDays:0, pCa:0, ca:0, days:0, wAgents:new Set(), agents:new Set(), byAgent:{}, best:0, bestDay:null, last:null};
 
   rows.forEach(r=>{
     const s = S[r.user_id]; if(!s) return;
     const ca = Number(r.ca||0), k = r.day;
+    const mName = splitMo(r.modelle).m;
+    if(mName && k<=to){
+      const m = mStat(mName.toLowerCase()); if(m.name===mName.toLowerCase()) m.name = mName;
+      if(k>=from){ m.wCa += ca; if(ca>0){ m.wDays++; m.wAgents.add(r.user_id); } }
+      if(k>=pFrom && k<=pTo) m.pCa += ca;
+      m.ca += ca; m.byAgent[r.user_id] = (m.byAgent[r.user_id]||0) + ca;
+      if(ca>0){ m.days++; m.agents.add(r.user_id); if(!m.last||k>m.last) m.last=k; }
+      if(ca>m.best){ m.best = ca; m.bestDay = k; }
+    }
     if(k>=from && k<=to){ s.wCa += ca; if(ca>0) s.wDays++; daily[Math.round((new Date(k+'T00:00:00')-days[0])/864e5)].v += ca; }
     if(k>=pFrom && k<=pTo) s.pCa += ca;
     const di = Math.round((new Date(k+'T00:00:00')-hStart)/864e5);
@@ -320,6 +339,20 @@ async function showStats(){
     <td>${meter(gCa?s.ca/gCa*100:0)}</td><td>${s.weeks.size}</td><td>${fmt(s.weeks.size?s.ca/s.weeks.size:0)}</td>
     <td>${s.best>0?fmt(s.best)+`<small>${dShort(s.bestDay)}</small>`:'—'}</td><td>${dShort(s.last)}</td>
     <td>${fmt(s.ca*s.p.commission)}</td>${arC(s.ca*s.p.commission*AR_MULT)}</tr>`).join('');
+  // Par modèle
+  const models = Object.values(M);
+  const agentName = id => S[id] ? esc(S[id].p.full_name||S[id].p.email) : '—';
+  const topAgent = m => { const e = Object.entries(m.byAgent).sort((a,b)=>b[1]-a[1])[0]; return e&&e[1]>0 ? agentName(e[0])+`<small>${fmt(e[1])}</small>` : '—'; };
+  const mwCa = models.reduce((t,m)=>t+m.wCa,0), mgCa = models.reduce((t,m)=>t+m.ca,0);
+  const mwList = models.filter(m=>m.wCa>0||m.pCa>0).sort((a,b)=>b.wCa-a.wCa);
+  const mgList = [...models].sort((a,b)=>b.ca-a.ca);
+  const noModel = '<tr><td colspan="7" style="color:var(--mute)">Aucun modèle renseigné pour cette période.</td></tr>';
+  const mwRows = mwList.map((m,i)=>`<tr><td>${i+1}</td><td><b>${esc(m.name)}</b></td><td><b>${fmt(m.wCa)}</b></td>
+    <td>${meter(mwCa?m.wCa/mwCa*100:0)}</td><td>${m.wDays}</td><td>${[...m.wAgents].map(agentName).join(', ')||'—'}</td><td>${evoHtml(m.wCa,m.pCa)}</td></tr>`).join('') || noModel;
+  const mgRows = mgList.map((m,i)=>`<tr><td>${i+1}</td><td><b>${esc(m.name)}</b></td><td><b>${fmt(m.ca)}</b></td>
+    <td>${meter(mgCa?m.ca/mgCa*100:0)}</td><td>${m.days}</td><td>${fmt(m.days?m.ca/m.days:0)}</td><td>${m.agents.size}</td>
+    <td>${topAgent(m)}</td><td>${m.best>0?fmt(m.best)+`<small>${dShort(m.bestDay)}</small>`:'—'}</td><td>${dShort(m.last)}</td></tr>`).join('') || noModel.replace('colspan="7"','colspan="10"');
+  const mTopW = mwList[0], mTopG = mgList[0];
 
   $('app').innerHTML = `${topBar()}${weekNav()}
   <div class="card"><h2>Tableau de bord hebdomadaire — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
@@ -352,6 +385,22 @@ async function showStats(){
     <p class="sec">Classement général</p>
     <table><tr><th>#</th><th>Agent</th><th>CA total</th><th>Part</th><th>Semaines</th><th>Moy. / sem.</th><th>Meilleur jour</th><th>Dernier rapport</th><th>Commission</th>${arH()}</tr>${gRows}
     <tfoot><tr><td></td><td>Total</td><td>${fmt(gCa)}</td><td></td><td>${allWeeks.size}</td><td></td><td></td><td></td><td>${fmt(gCo)}</td>${arC(gCo*AR_MULT)}</tr></tfoot></table>
+  </div>
+  <div class="card"><h2>Statistiques par modèle</h2>
+    <p class="hint">CA regroupé selon le champ « Modèle » des rapports (le « Détail » n'est pas compté ici). Les jours sans modèle renseigné ne sont pas inclus.</p>
+    <div class="tiles">
+      <div><span>Modèles enregistrés</span><b>${models.length}</b></div>
+      <div><span>Modèles actifs cette semaine</span><b>${models.filter(m=>m.wCa>0).length}</b></div>
+      <div><span>Top modèle de la semaine</span><b>${mTopW&&mTopW.wCa>0?fmt(mTopW.wCa):'—'}</b><span>${mTopW&&mTopW.wCa>0?esc(mTopW.name):''}</span></div>
+      <div><span>Top modèle général</span><b>${mTopG&&mTopG.ca>0?fmt(mTopG.ca):'—'}</b><span>${mTopG&&mTopG.ca>0?esc(mTopG.name):''}</span></div>
+    </div>
+    ${mwList.some(m=>m.wCa>0)?barChart(mwList.filter(m=>m.wCa>0).slice(0,10).map(m=>({label:m.name.length>9?m.name.slice(0,8)+'…':m.name, title:m.name, v:m.wCa, cur:true})),'CA par modèle sur la semaine'):''}
+    <p class="sec">Semaine du ${days[0].toLocaleDateString('fr-FR')}</p>
+    <table><tr><th>#</th><th>Modèle</th><th>CA</th><th>Part</th><th>Jours</th><th>Agents</th><th>Évolution</th></tr>${mwRows}
+    <tfoot><tr><td></td><td>Total</td><td>${fmt(mwCa)}</td><td></td><td>${mwList.reduce((t,m)=>t+m.wDays,0)}</td><td></td><td></td></tr></tfoot></table>
+    <p class="sec">Général</p>
+    <table><tr><th>#</th><th>Modèle</th><th>CA total</th><th>Part</th><th>Jours</th><th>Moy. / jour</th><th>Agents</th><th>Meilleur agent</th><th>Meilleur jour</th><th>Dernier rapport</th></tr>${mgRows}
+    <tfoot><tr><td></td><td>Total</td><td>${fmt(mgCa)}</td><td></td><td>${models.reduce((t,m)=>t+m.days,0)}</td><td></td><td></td><td></td><td></td><td></td></tr></tfoot></table>
   </div>`;
 }
 
@@ -381,8 +430,8 @@ function calc(){
 }
 async function save(uid){
   const up=[], del=[];
-  days.forEach(d=>{const k=iso(d), ca=$('ca_'+k).value.trim(), mo=$('mo_'+k).value.trim();
-    if(ca===''&&mo==='') del.push(k); else up.push({user_id:uid,day:k,ca:+ca||0,modelle:mo||null}); });
+  days.forEach(d=>{const k=iso(d), ca=$('ca_'+k).value.trim(), mo=$('mo_'+k).value.replaceAll('¦','').trim(), dt=$('dt_'+k).value.replaceAll('¦','').trim();
+    if(ca===''&&mo===''&&dt==='') del.push(k); else up.push({user_id:uid,day:k,ca:+ca||0,modelle:joinMo(mo,dt)}); });
   let error = null;
   const v = +$('rate').value;
   if(!(v>0 && v<=100)){ $('sm').className='msg'; $('sm').textContent='Choisis un taux de commission dans la liste.'; return; }
