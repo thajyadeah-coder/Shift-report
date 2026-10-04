@@ -216,36 +216,44 @@ let lastRefresh = new Date();
 const pbar = (v,g) => `<i class="pg${g>0&&v>=g?' ok':''}"><u style="width:${g>0?Math.min(100,v/g*100):0}%"></u></i>`;
 const stBadge = (v,g) => g>0&&v>=g ? '<span class="bd">✔ Atteint</span>' : `<span class="bd warn">En cours · reste ${fmt(Math.max(g-v,0))}</span>`;
 const mkey = n => String(n).trim().toLocaleLowerCase('fr');
+// Objectifs de l'agence fixés jour par jour (table agency_goals : day, amount)
+let agMap={}, agOk=true;
+const hasAg = k => Object.prototype.hasOwnProperty.call(agMap,k);
 function objData(goals,rows,todayRows){
-  const from=iso(days[0]),to=iso(days[6]);
-  const wk={},td={}; let wTot=0,tTot=0,doneCA=0;
-  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; if(r.day<iso(new Date())) doneCA+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
+  const from=iso(days[0]),to=iso(days[6]),today=iso(new Date());
+  const wk={},td={},dayCA={}; let wTot=0,tTot=0,doneCA=0;
+  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; dayCA[r.day]=(dayCA[r.day]||0)+ca; if(r.day<today) doneCA+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
   todayRows.forEach(r=>{ const ca=Number(r.ca||0); tTot+=ca; td[mkey(r.model_name)]=(td[mkey(r.model_name)]||0)+ca; });
-  const dayGoal=goals.reduce((s,g)=>s+Number(g.daily_goal||0),0);
-  return {wk,td,wTot,tTot,doneCA,dayGoal,weekGoal:dayGoal*7};
+  // Valeur par défaut d'un jour sans objectif fixé : somme des objectifs des modèles
+  const base=goals.reduce((s,g)=>s+Number(g.daily_goal||0),0);
+  const goalOf=k=>hasAg(k)?agMap[k]:base;
+  const dayGoal=goalOf(today);
+  const weekGoal=days.reduce((s,d)=>s+goalOf(iso(d)),0);
+  const doneGoal=days.reduce((s,d)=>iso(d)<today?s+goalOf(iso(d)):s,0);
+  return {wk,td,dayCA,wTot,tTot,doneCA,base,goalOf,dayGoal,weekGoal,doneGoal,todaySet:hasAg(today)};
 }
 function catchUp(o){
-  if(!o.dayGoal) return '';
+  if(!o.weekGoal) return '';
   const today=iso(new Date());
   const done=days.filter(d=>iso(d)<today).length, rem=days.filter(d=>iso(d)>=today).length;
-  const gap=o.dayGoal*done-o.doneCA, left=Math.max(o.weekGoal-o.wTot,0), need=rem>0?left/rem:null, late=gap>0;
+  const gap=o.doneGoal-o.doneCA, left=Math.max(o.weekGoal-o.wTot,0), need=rem>0?left/rem:null, late=gap>0;
   const msg = left===0 ? '✔ L\'objectif hebdomadaire de l\'agence est atteint.'
     : rem===0 ? `Semaine terminée : ${fmt(left)} d'objectif n'ont pas été réalisés.`
     : `Pour atteindre l'objectif de la semaine, il faut réaliser ${fmt(left)} sur les ${rem} jour${rem>1?'s':''} restant${rem>1?'s':''}, soit ${fmt(need)} par jour (aujourd'hui inclus).`;
   return `<div class="card"><h2>Rattrapage de la semaine</h2>
   <div class="tiles" style="margin-bottom:8px">
-    <div class="k"><span>${late?'Retard à rattraper':'Avance'} (jours terminés)</span><b class="${late?'down':'up'}">${fmt(Math.abs(gap))}</b><span>${done} jour${done>1?'s':''} terminé${done>1?'s':''} × ${fmt(o.dayGoal)}</span></div>
+    <div class="k"><span>${late?'Retard à rattraper':'Avance'} (jours terminés)</span><b class="${late?'down':'up'}">${fmt(Math.abs(gap))}</b><span>Objectif cumulé des ${done} jour${done>1?'s':''} terminé${done>1?'s':''} : ${fmt(o.doneGoal)}</span></div>
     <div class="k"><span>Reste à réaliser (semaine)</span><b>${fmt(left)}</b>${pbar(o.wTot,o.weekGoal)}</div>
     <div class="k"><span>Jours restants</span><b>${rem}</b></div>
-    <div class="k"><span>CA nécessaire / jour</span><b>${need===null?'—':fmt(need)}</b><span>objectif : ${fmt(o.dayGoal)} / jour</span></div>
+    <div class="k"><span>CA nécessaire / jour</span><b>${need===null?'—':fmt(need)}</b><span>objectif d'aujourd'hui : ${fmt(o.dayGoal)}</span></div>
   </div>
   <p class="hint" style="margin:0">${msg}</p></div>`;
 }
 function objTiles(o){
   return `<div class="tiles">
-    <div class="k"><span>Objectif agence — par jour</span><b>${fmt(o.dayGoal)}</b><span>Somme des objectifs des modèles</span></div>
+    <div class="k"><span>Objectif agence — aujourd'hui</span><b>${fmt(o.dayGoal)}</b><span>${o.todaySet?'Fixé pour aujourd\'hui':'Par défaut (somme des modèles)'}</span></div>
     <div class="k"><span>CA d'aujourd'hui</span><b>${fmt(o.tTot)}</b>${pbar(o.tTot,o.dayGoal)}${stBadge(o.tTot,o.dayGoal)}</div>
-    <div class="k"><span>Objectif agence — semaine</span><b>${fmt(o.weekGoal)}</b><span>${fmt(o.dayGoal)} × 7 jours</span></div>
+    <div class="k"><span>Objectif agence — semaine</span><b>${fmt(o.weekGoal)}</b><span>Somme des 7 objectifs journaliers</span></div>
     <div class="k"><span>CA de la semaine affichée</span><b>${fmt(o.wTot)}</b>${pbar(o.wTot,o.weekGoal)}${stBadge(o.wTot,o.weekGoal)}</div>
   </div>
   ${catchUp(o)}
@@ -254,7 +262,48 @@ function objTiles(o){
 function objSummary(goals,rows,tr){
   if(goals===null) return '';
   const o=objData(goals,rows,tr);
-  return o.dayGoal ? objTiles(o) : '<p class="hint">Aucun objectif défini : ajoutez vos modèles dans l\'onglet Objectifs.</p>';
+  return (o.dayGoal||o.weekGoal) ? objTiles(o) : '<p class="hint">Aucun objectif défini : fixez l\'objectif de l\'agence du jour dans l\'onglet Objectifs.</p>';
+}
+function agencyCard(o){
+  if(!agOk) return `<div class="card"><h2>Objectif de l'agence — jour par jour</h2><p class="msg">Table « agency_goals » absente : exécutez le SQL fourni dans Supabase pour activer l'objectif journalier de l'agence.</p></div>`;
+  const today=iso(new Date());
+  const trs=days.map(d=>{
+    const k=iso(d), g=o.goalOf(k), ca=o.dayCA[k]||0;
+    const st = g<=0 ? '—' : k>today ? '<span class="bd off">À venir</span>'
+      : (k<today && ca<g) ? `<span class="bd warn">Non atteint · manque ${fmt(g-ca)}</span>` : stBadge(ca,g);
+    return `<tr${k===today?' style="font-weight:600"':''}><td style="text-transform:capitalize">${dayName(d)}${k===today?' · aujourd\'hui':''}</td>
+      <td><input type="text" inputmode="decimal" style="width:110px" value="${hasAg(k)?agMap[k]:''}" placeholder="${o.base?fmt(o.base):'0'}" onchange="setAgencyGoal('${k}',this.value)" aria-label="Objectif de l'agence du ${k}"></td>
+      <td>${fmt(ca)}</td><td style="min-width:130px">${g>0?pbar(ca,g):''}</td><td>${st}</td></tr>`;
+  }).join('');
+  return `<div class="card mm"><h2>Objectif de l'agence — jour par jour</h2>
+  <p class="hint">Fixez l'objectif de l'agence pour chaque jour de la semaine affichée. Un jour laissé vide utilise la valeur par défaut (${o.base?fmt(o.base)+', somme des objectifs des modèles':'aucune, tant que les modèles n\'ont pas d\'objectif'}). L'objectif de la semaine est la somme des 7 jours.</p>
+  <div class="row" style="align-items:flex-end;margin-bottom:12px">
+    <label>Même objectif pour les 7 jours<input id="ag_all" inputmode="decimal" placeholder="Ex. 1500"></label>
+    <button class="p" onclick="fillAgencyWeek()">Appliquer à la semaine</button></div>
+  <div id="ag_msg" class="msg"></div>
+  <table><tr><th>Jour</th><th>Objectif agence</th><th>CA réalisé</th><th>Progression</th><th>Statut</th></tr>${trs}
+  <tfoot><tr><td>Semaine</td><td>${fmt(o.weekGoal)}</td><td>${fmt(o.wTot)}</td><td style="min-width:130px">${pbar(o.wTot,o.weekGoal)}</td><td>${o.weekGoal?stBadge(o.wTot,o.weekGoal):'—'}</td></tr></tfoot></table></div>`;
+}
+async function setAgencyGoal(day,v){
+  const raw=String(v).trim();
+  if(raw===''){
+    const {error}=await sb.from('agency_goals').delete().eq('day',day);
+    if(error) alert('Erreur : '+error.message);
+    return show();
+  }
+  const g=num(raw);
+  if(!Number.isFinite(g)||g<0) return show();
+  const {error}=await sb.from('agency_goals').upsert({day,amount:g,updated_at:new Date().toISOString()},{onConflict:'day'});
+  if(error) alert('Erreur : '+error.message);
+  show();
+}
+async function fillAgencyWeek(){
+  const raw=$('ag_all').value.trim(), g=num(raw), m=$('ag_msg');
+  if(!raw||!Number.isFinite(g)||g<0) return m.textContent='Indiquez un objectif valide (nombre positif).';
+  const now=new Date().toISOString();
+  const {error}=await sb.from('agency_goals').upsert(days.map(d=>({day:iso(d),amount:g,updated_at:now})),{onConflict:'day'});
+  if(error) return m.textContent='Erreur : '+error.message;
+  show();
 }
 const frDate = d => new Date(d+'T00:00:00').toLocaleDateString('fr-FR');
 function cuProgress(cu,ca){
@@ -515,6 +564,12 @@ async function show(){
     admin ? allEntries(iso(new Date()),iso(new Date())).catch(()=>[]) : Promise.resolve([])
   ]);
   const goals=md.error?null:(md.data||[]);
+  agMap={}; agOk=true;
+  if(admin && (t==='dash'||t==='goals')){
+    const td0=iso(new Date()), lo=td0<from?td0:from, hi=td0>to?td0:to;
+    const a=await sb.from('agency_goals').select('day,amount').gte('day',lo).lte('day',hi);
+    if(a.error) agOk=false; else (a.data||[]).forEach(r=>{ agMap[r.day]=Number(r.amount); });
+  }
   let cu=null, cuOk=true, cuCA=0;
   if(admin && (t==='dash'||t==='goals')){
     const c=await sb.from('settings').select('*').eq('key','catchup').maybeSingle();
@@ -601,16 +656,16 @@ async function show(){
         <td>${fmt(w)} / ${fmt(gl*7)}</td>
         <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
     }).join('');
-    goalsTab=cuCard(cu,cuOk,cuCA)+`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
+    goalsTab=cuCard(cu,cuOk,cuCA)+agencyCard(o)+`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
     <p class="hint">Le nom du modèle doit être identique à celui saisi par les agents (ils le retrouvent dans la liste de suggestions). Réutiliser un nom existant met à jour son objectif.</p>
     <div class="row"><input id="md_nm" placeholder="Nom du modèle"><input id="md_g" inputmode="decimal" placeholder="Objectif journalier (CA)"><button class="p" onclick="addModel()">Ajouter le modèle</button></div>
     <div id="md_msg" class="ok">${esc(notice)}</div></div>`;
     notice='';
     goalsTab+= goals===null
       ? `<div class="card"><p class="msg">Table « models » absente : exécutez le SQL fourni dans Supabase pour activer les objectifs.</p></div>`
-      : `${o.dayGoal?objTiles(o):''}
+      : `${(o.dayGoal||o.weekGoal)?objTiles(o):''}
     <div class="card"><h2>Suivi des objectifs par modèle</h2>
-    <p class="hint">Le CA du jour correspond à la date d'aujourd'hui ; le CA de la semaine à la semaine affichée (objectif hebdomadaire = objectif journalier × 7).</p>
+    <p class="hint">Le CA du jour correspond à la date d'aujourd'hui ; le CA de la semaine à la semaine affichée. Les objectifs par modèle servent de repère et de valeur par défaut pour l'agence quand aucun objectif n'a été fixé pour un jour.</p>
     ${trs?`<table><tr><th>Modèle</th><th>Objectif / jour</th><th>CA aujourd'hui</th><th>Progression</th><th>Statut</th><th>Semaine : CA / objectif</th><th></th></tr>${trs}
     <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?stBadge(o.tTot,o.dayGoal):'—'}</td><td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
   }
