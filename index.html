@@ -230,18 +230,19 @@ const mkey = n => String(n).trim().toLocaleLowerCase('fr');
 // Objectifs de l'agence fixés jour par jour (table agency_goals : day, amount)
 let agMap={}, agOk=true;
 const hasAg = k => Object.prototype.hasOwnProperty.call(agMap,k);
-function objData(goals,rows,todayRows){
+function objData(goals,rows,dayRows,day){
   const from=iso(days[0]),to=iso(days[6]),today=iso(new Date());
+  day=day||today;
   const wk={},td={},dayCA={}; let wTot=0,tTot=0,doneCA=0;
   rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; dayCA[r.day]=(dayCA[r.day]||0)+ca; if(r.day<today) doneCA+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
-  todayRows.forEach(r=>{ const ca=Number(r.ca||0); tTot+=ca; td[mkey(r.model_name)]=(td[mkey(r.model_name)]||0)+ca; });
+  dayRows.forEach(r=>{ const ca=Number(r.ca||0); tTot+=ca; td[mkey(r.model_name)]=(td[mkey(r.model_name)]||0)+ca; });
   // Valeur par défaut d'un jour sans objectif fixé : somme des objectifs des modèles
   const base=goals.reduce((s,g)=>s+Number(g.daily_goal||0),0);
   const goalOf=k=>hasAg(k)?agMap[k]:base;
-  const dayGoal=goalOf(today);
+  const dayGoal=goalOf(day), todayGoal=goalOf(today);
   const weekGoal=days.reduce((s,d)=>s+goalOf(iso(d)),0);
   const doneGoal=days.reduce((s,d)=>iso(d)<today?s+goalOf(iso(d)):s,0);
-  return {wk,td,dayCA,wTot,tTot,doneCA,base,goalOf,dayGoal,weekGoal,doneGoal,todaySet:hasAg(today)};
+  return {wk,td,dayCA,wTot,tTot,doneCA,base,goalOf,dayGoal,todayGoal,weekGoal,doneGoal,day,isToday:day===today,daySet:hasAg(day)};
 }
 function catchUp(o){
   if(!o.weekGoal) return '';
@@ -256,19 +257,36 @@ function catchUp(o){
     <div class="k"><span>${late?'Retard à rattraper':'Avance'} (jours terminés)</span><b class="${late?'down':'up'}">${fmt(Math.abs(gap))}</b><span>Objectif cumulé des ${done} jour${done>1?'s':''} terminé${done>1?'s':''} : ${fmt(o.doneGoal)}</span></div>
     <div class="k"><span>Reste à réaliser (semaine)</span><b>${fmt(left)}</b>${pbar(o.wTot,o.weekGoal)}</div>
     <div class="k"><span>Jours restants</span><b>${rem}</b></div>
-    <div class="k"><span>CA nécessaire / jour</span><b>${need===null?'—':fmt(need)}</b><span>objectif d'aujourd'hui : ${fmt(o.dayGoal)}</span></div>
+    <div class="k"><span>CA nécessaire / jour</span><b>${need===null?'—':fmt(need)}</b><span>objectif d'aujourd'hui : ${fmt(o.todayGoal)}</span></div>
   </div>
   <p class="hint" style="margin:0">${msg}</p></div>`;
 }
 function objTiles(o){
   return `<div class="tiles">
-    <div class="k"><span>Objectif agence — aujourd'hui</span><b>${fmt(o.dayGoal)}</b><span>${o.todaySet?'Fixé pour aujourd\'hui':'Par défaut (somme des modèles)'}</span></div>
-    <div class="k"><span>CA d'aujourd'hui</span><b>${fmt(o.tTot)}</b>${pbar(o.tTot,o.dayGoal)}${stBadge(o.tTot,o.dayGoal)}</div>
+    <div class="k"><span>Objectif agence — ${o.isToday?'aujourd\'hui':'le '+frDate(o.day)}</span><b>${fmt(o.dayGoal)}</b><span>${o.daySet?'Fixé pour ce jour':'Par défaut (somme des modèles)'}</span></div>
+    <div class="k"><span>CA ${o.isToday?'d\'aujourd\'hui':'du '+frDate(o.day)}</span><b>${fmt(o.tTot)}</b>${pbar(o.tTot,o.dayGoal)}${dayBadge(o.day,o.tTot,o.dayGoal)}</div>
     <div class="k"><span>Objectif agence — semaine</span><b>${fmt(o.weekGoal)}</b><span>Somme des 7 objectifs journaliers</span></div>
     <div class="k"><span>CA de la semaine affichée</span><b>${fmt(o.wTot)}</b>${pbar(o.wTot,o.weekGoal)}${stBadge(o.wTot,o.weekGoal)}</div>
   </div>
   ${catchUp(o)}
   <p class="hint">Actualisation automatique toutes les 30 secondes · dernière mise à jour à ${lastRefresh.toLocaleTimeString('fr-FR')}</p>`;
+}
+function dayBadge(k,v,g){
+  if(!(g>0)) return '—';
+  const today=iso(new Date());
+  if(v>=g) return '<span class="bd">✔ Atteint</span>';
+  if(k>today) return '<span class="bd off">À venir</span>';
+  if(k<today) return `<span class="bd warn">Non atteint · manque ${fmt(g-v)}</span>`;
+  return stBadge(v,g);
+}
+// Date de suivi choisie dans l'onglet Objectifs (null = aujourd'hui) ; la semaine affichée suit cette date
+function pickObjDay(v){
+  if(!v){ objDay=null; weekStart=monday(new Date()); }
+  else { objDay=v; weekStart=monday(new Date(v+'T00:00:00')); }
+  show();
+}
+function shiftObjDay(n){
+  const d=new Date((objDay||iso(new Date()))+'T00:00:00'); d.setDate(d.getDate()+n); pickObjDay(iso(d));
 }
 function objSummary(goals,rows,tr){
   if(goals===null) return '';
@@ -386,6 +404,7 @@ async function delModel(b){
 }
 
 const greet = () => new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
+let objDay = null;
 let me = null, viewId = null, tab = null, weekStart = monday(new Date()), days = [], notice = '';
 
 async function authView(msg, mode){
@@ -436,8 +455,8 @@ async function start(){
   show();
 }
 
-function shift(n){ weekStart.setDate(weekStart.getDate()+n*7); show(); }
-function pickWeek(v){ if(v){ weekStart = monday(new Date(v+'T00:00:00')); show(); } }
+function shift(n){ weekStart.setDate(weekStart.getDate()+n*7); if(objDay){ const d=new Date(objDay+'T00:00:00'); d.setDate(d.getDate()+n*7); objDay=iso(d); } show(); }
+function pickWeek(v){ if(v){ weekStart = monday(new Date(v+'T00:00:00')); if(objDay) objDay=v; show(); } }
 function pick(id){ viewId = id; tab = 'agent'; show(); }
 function setTab(t){ tab = t; show(); }
 
@@ -572,9 +591,10 @@ async function show(){
     return;
   }
 
+  const objD=(t==='goals'&&objDay)?objDay:iso(new Date());
   const [md,tr]=await Promise.all([
     sb.from('models').select('*').order('name'),
-    admin ? allEntries(iso(new Date()),iso(new Date())).catch(()=>[]) : Promise.resolve([])
+    admin ? allEntries(objD,objD).catch(()=>[]) : Promise.resolve([])
   ]);
   const goals=md.error?null:(md.data||[]);
   MODEL_NAMES=(goals||[]).map(g=>String(g.name).trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
@@ -661,12 +681,13 @@ async function show(){
 
   let goalsTab='';
   if(admin && t==='goals'){
-    const o=objData(goals||[],rows,tr);
+    const o=objData(goals||[],rows,tr,objD);
+    const lbl=o.isToday?"aujourd'hui":'du '+frDate(o.day);
     const trs=(goals||[]).map(g=>{
       const k=mkey(g.name), gl=Number(g.daily_goal||0), td=o.td[k]||0, w=o.wk[k]||0;
       return `<tr><td>${esc(g.name)}</td>
         <td><input type="text" inputmode="decimal" style="width:100px" value="${gl}" onchange="setGoal('${g.id}',this.value)" aria-label="Objectif journalier"></td>
-        <td>${fmt(td)}</td><td style="min-width:130px">${gl>0?pbar(td,gl):''}</td><td>${gl>0?stBadge(td,gl):'—'}</td>
+        <td>${fmt(td)}</td><td style="min-width:130px">${gl>0?pbar(td,gl):''}</td><td>${gl>0?dayBadge(o.day,td,gl):'—'}</td>
         <td>${fmt(w)} / ${fmt(gl*7)}</td>
         <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
     }).join('');
@@ -679,9 +700,15 @@ async function show(){
       ? `<div class="card"><p class="msg">Table « models » absente : exécutez le SQL fourni dans Supabase pour activer les objectifs.</p></div>`
       : `${(o.dayGoal||o.weekGoal)?objTiles(o):''}
     <div class="card"><h2>Suivi des objectifs par modèle</h2>
-    <p class="hint">Le CA du jour correspond à la date d'aujourd'hui ; le CA de la semaine à la semaine affichée. Les objectifs par modèle servent de repère et de valeur par défaut pour l'agence quand aucun objectif n'a été fixé pour un jour.</p>
-    ${trs?`<table><tr><th>Modèle</th><th>Objectif / jour</th><th>CA aujourd'hui</th><th>Progression</th><th>Statut</th><th>Semaine : CA / objectif</th><th></th></tr>${trs}
-    <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?stBadge(o.tTot,o.dayGoal):'—'}</td><td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
+    <div class="row" style="margin-bottom:10px">
+      <button onclick="shiftObjDay(-1)" aria-label="Jour précédent">◀</button>
+      <input type="date" value="${o.day}" onchange="pickObjDay(this.value)" aria-label="Date du suivi">
+      <button onclick="shiftObjDay(1)" aria-label="Jour suivant">▶</button>
+      <button onclick="pickObjDay('')" ${o.isToday?'disabled':''}>Aujourd'hui</button>
+      <span style="color:var(--mute)">Suivi ${o.isToday?"d'aujourd'hui":'du'} <b style="text-transform:capitalize">${dayName(new Date(o.day+'T00:00:00'))}</b></span></div>
+    <p class="hint">Choisissez une date : les colonnes du jour (objectif, CA, progression, statut) et la semaine affichée se mettent à jour. Le CA de la semaine correspond à la semaine de cette date. Les objectifs par modèle servent de repère et de valeur par défaut pour l'agence quand aucun objectif n'a été fixé pour un jour.</p>
+    ${trs?`<table><tr><th>Modèle</th><th>Objectif / jour</th><th>CA ${lbl}</th><th>Progression</th><th>Statut</th><th>Semaine : CA / objectif</th><th></th></tr>${trs}
+    <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?dayBadge(o.day,o.tTot,o.dayGoal):'—'}</td><td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
   }
 
   const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['team','👥 Équipe'],['access','🔑 Accès']]
