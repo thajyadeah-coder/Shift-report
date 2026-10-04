@@ -216,7 +216,7 @@ async function start(){
 
 function shift(n){ weekStart.setDate(weekStart.getDate()+n*7); show(); }
 function pickWeek(v){ if(v){ weekStart = monday(new Date(v+'T00:00:00')); show(); } }
-function pick(id){ viewId = id; tab = 'reports'; show(); }
+function pick(id){ viewId = id; tab = 'agent'; show(); }
 function setTab(t){ tab = t; show(); }
 
 // ---------- Graphiques ----------
@@ -238,7 +238,7 @@ function hbars(items,empty){
   if(!items.length) return `<p class="hint">${empty}</p>`;
   const max=Math.max(...items.map(i=>i.v),1);
   return items.map(it=>`<div class="hb">
-    ${it.id?`<a href="#" onclick="pick('${it.id}');return false" title="Ouvrir le rapport">${esc(it.l)}</a>`:`<span class="n">${esc(it.l)}</span>`}
+    ${it.id?`<a href="#" onclick="pick('${it.id}');return false" title="Ouvrir le tableau de bord">${esc(it.l)}</a>`:`<span class="n">${esc(it.l)}</span>`}
     <i><u style="width:${Math.max(it.v/max*100,2)}%"></u></i><em>${esc(it.r)}</em></div>`).join('');
 }
 
@@ -289,10 +289,38 @@ function dashCard(profiles,rows,hStart){
       ${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA de l\'équipe par jour')}</div>
   </div>
   <div class="g2">
-    <div class="card"><h2>Classement des agents</h2><p class="hint">Cliquez sur un agent pour consulter son rapport.</p>
+    <div class="card"><h2>Classement des agents</h2><p class="hint">Cliquez sur un agent pour ouvrir son tableau de bord.</p>
       ${hbars(ag.filter(a=>a.ca>0).map(a=>({id:a.p.id,l:a.p.full_name||a.p.email,v:a.ca,r:`${fmt(a.ca)} · ${Math.round(a.ca/tca*100)} %`})),'Aucune activité enregistrée cette semaine.')}</div>
     <div class="card"><h2>Modèles les plus performants</h2><p class="hint">Les 6 premiers de la semaine, par chiffre d'affaires.</p>
       ${hbars(top.map(m=>({l:m.n,v:m.ca,r:fmt(m.ca)})),'Aucune activité enregistrée cette semaine.')}</div>
+  </div>`;
+}
+
+function agentView(vu,profiles,hist,hStart,mm){
+  const from=iso(days[0]),to=iso(days[6]),today=iso(new Date());
+  const dayT={},models={};
+  hist.forEach(r=>{
+    if(r.day<from||r.day>to) return;
+    const ca=Number(r.ca||0);
+    dayT[r.day]=(dayT[r.day]||0)+ca;
+    const k=String(r.model_name).trim().toLocaleLowerCase('fr');
+    (models[k]=models[k]||{n:r.model_name,ca:0}).ca+=ca;
+  });
+  const ca=days.reduce((s,d)=>s+(dayT[iso(d)]||0),0), co=ca*vu.commission;
+  const top=Object.values(models).sort((a,b)=>b.ca-a.ca).slice(0,6);
+  const m=mm||{};
+  return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
+  <select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.filter(p=>p.role!=='admin').map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select></div>
+  <p class="hint" style="margin:8px 0 0">${esc(vu.email)} · Mobile Money : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}</p></div>
+  <div class="tiles">
+    <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
+    <div class="k"><span>Taux de commission</span><b>${pct(vu.commission)}</b></div>
+    <div class="k"><span>Commission</span><b>${fmt(co)}</b></div>
+    <div class="k"><span>Commission (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>
+  </div>
+  <div class="g2">
+    <div class="card"><h2>CA par jour</h2><p class="hint">Semaine affichée.</p>${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA par jour')}</div>
+    <div class="card"><h2>Modèles les plus vendus</h2><p class="hint">Les 6 premiers de la semaine.</p>${hbars(top.map(x=>({l:x.n,v:x.ca,r:fmt(x.ca)})),'Aucune activité enregistrée cette semaine.')}</div>
   </div>`;
 }
 
@@ -320,6 +348,10 @@ async function show(){
   }
 
   if(!admin || !profiles.find(p=>p.id===viewId)) viewId=me.id;
+  if(admin&&t==='agent'){
+    const ags=profiles.filter(p=>p.role!=='admin');
+    if(!ags.find(p=>p.id===viewId)&&ags[0]) viewId=ags[0].id;
+  }
   const vu=profiles.find(p=>p.id===viewId)||me;
   const hist=rows.filter(r=>r.user_id===vu.id);
 
@@ -341,36 +373,17 @@ async function show(){
   });
   const mine=byU[vu.id]||{};
 
-  let dash='', recap='', team='';
+  let dash='', team='';
   if(admin && t==='dash') dash=dashCard(profiles,rows,hStart);
 
-  if(admin && t==='reports'){
-    let gCa=0,gCo=0,gAr=0;
-    const body=profiles.map(p=>{
-      const u=byU[p.id]||{};
-      const ca=days.reduce((s,d)=>s+Number((u[iso(d)]||{}).ca||0),0);
-      const co=ca*p.commission, ar=co*AR_MULT;
-      gCa+=ca; gCo+=co; gAr+=ar;
-      return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||p.email)}</a></td>
-      ${days.map(d=>{
-        const r=u[iso(d)];
-        const details=r&&r.models.length
-          ?`<small>${r.models.map(m=>`${esc(m.model_name)} : ${fmt(m.ca)}${m.detail?' — '+esc(m.detail):''}`).join('<br>')}</small>`:'';
-        return `<td>${r?fmt(r.ca)+details:''}</td>`;
-      }).join('')}
-      <td><b>${fmt(ca)}</b></td><td>${pct(p.commission)}</td><td>${fmt(co)}</td><td>${fmt(ar)}</td></tr>`;
-    }).join('');
-    recap=`<div class="card"><h2>Synthèse hebdomadaire — semaine du ${days[0].toLocaleDateString('fr-FR')}</h2>
-    <p class="hint">Cliquez sur le nom d'un agent pour consulter et modifier son rapport.</p><table>
-    <tr><th>Agent</th>${days.map(d=>`<th>${dayShort(d)}</th>`).join('')}<th>CA</th><th>Taux</th><th>Commission</th><th>Ar</th></tr>${body}
-    <tfoot><tr><td>Total</td><td colspan="7"></td><td>${fmt(gCa)}</td><td></td><td>${fmt(gCo)}</td><td>${fmt(gAr)}</td></tr></tfoot></table></div>`;
-  }
+  let agent='';
+  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne)+statsCard(vu,hist,hStart);
 
   if(admin && t==='team'){
-    team=`<div class="card"><h2>Gestion de l'équipe</h2><table><tr><th>Agent</th><th>Email</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
+    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">L'adresse email sert d'identifiant de connexion. Les mots de passe sont chiffrés par Supabase et ne peuvent pas être consultés ; pour en réinitialiser un, utilisez Authentication › Users dans Supabase.</p><table><tr><th>Agent</th><th>Email</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
     ${profiles.map(p=>{
       const m=mmBy[p.id];
-      return `<tr><td>${esc(p.full_name||'(sans nom)')}</td><td>${esc(p.email)}</td>
+      return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||'(sans nom)')}</a></td><td>${esc(p.email)}</td>
       <td>${m&&m.number?esc(m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
       <td><select onchange="upd('${p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(p.commission))}</select></td>
       <td><select ${p.id===me.id?'disabled title="Vous ne pouvez pas modifier votre propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
@@ -383,7 +396,7 @@ async function show(){
     notice='';
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['reports','📝 Rapports'],['team','👥 Équipe']]
+  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['team','👥 Équipe']]
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
 
   const weekBar=t==='team'?'':`<div class="card"><div class="row">
@@ -393,12 +406,11 @@ async function show(){
     <span style="color:var(--mute)">Semaine du ${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
 
   const first=esc((vu.full_name||vu.email||'').split(/[ @]/)[0]);
-  const report=t!=='reports'?'':`${recap}
+  const report=(admin||t!=='reports')?'':`
   <div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
-  ${admin?`<select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select>`:''}</div>
+  </div>
   <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> 👋 Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
   <p class="hint">Pour chaque jour, ajoutez une ligne par modèle : modèle, chiffre d'affaires et détail éventuel. Les totaux se calculent automatiquement. Laissez un jour vide en l'absence d'activité.</p>
-  ${admin&&!HAS_DETAIL?`<p class="hint">Administrateur : pour activer le champ « Détail », exécutez dans Supabase (SQL Editor) <code>alter table model_entries add column detail text;</code> puis rechargez la page.</p>`:''}
   <div class="lh${HAS_DETAIL?'':' nd'}"><span>Modèle</span><span>Chiffre d'affaires</span>${HAS_DETAIL?'<span>Détail</span>':''}<span></span></div>
   ${days.map(d=>{
     const k=iso(d), r=mine[k]||{models:[]};
@@ -417,8 +429,8 @@ async function show(){
 
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}${weekBar}${dash}${report}${team}`;
-  if(t==='reports') calc();
+  ${nav}${weekBar}${dash}${agent}${report}${team}`;
+  if(t==='reports'&&!admin) calc();
 }
 
 function statsCard(vu,rows,hStart){
