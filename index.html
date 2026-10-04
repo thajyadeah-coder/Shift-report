@@ -48,6 +48,7 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .ln.nd,.lh.nd{grid-template-columns:2fr 1fr 40px}
 .ln input{min-width:0;width:100%}.ln button{padding:8px 0}
 .lh{color:var(--mute);font-size:13px;font-weight:600;margin-bottom:8px}
+.bd{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(31,111,92,.15);color:var(--acc)}.bd.off{background:rgba(150,150,150,.2);color:var(--mute)}
 .mm label{display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px}
 @media(max-width:760px){.g2{grid-template-columns:1fr}.lh{display:none}
 .ln,.ln.nd{grid-template-columns:1fr 1fr 40px}.ln button{order:3}.ln .d{order:4;grid-column:1/-1}}
@@ -62,6 +63,7 @@ const SUPABASE_URL = 'https://gnhvvhjnfsetopbekqcp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
 const AR_MULT = 3900;
 // =========================
+let recovering = /type=recovery/.test(location.hash);
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const sb2 = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
   auth:{persistSession:false,autoRefreshToken:false,detectSessionInUrl:false,storageKey:'sr-tmp'}
@@ -164,6 +166,40 @@ async function allEntries(from,to,uid){
   }
 }
 
+const ACTIVE_DAYS = 7; // un agent est « Actif » s'il a saisi son CA durant les 7 derniers jours
+function badge(last){
+  const age = last ? Math.floor((new Date(iso(new Date())+'T00:00:00') - new Date(last+'T00:00:00'))/864e5) : null;
+  const on = age !== null && age <= ACTIVE_DAYS;
+  return `<span class="bd${on?'':' off'}">${on?'● Actif':'● Inactif'}</span><small>${last?'Dernière saisie : '+new Date(last+'T00:00:00').toLocaleDateString('fr-FR'):'Aucune saisie'}</small>`;
+}
+function copyTxt(b){
+  const o=b.textContent;
+  (navigator.clipboard?navigator.clipboard.writeText(b.dataset.t):Promise.reject()).then(()=>{ b.textContent='Copié ✓'; setTimeout(()=>b.textContent=o,1500); }).catch(()=>{});
+}
+async function resetPw(b){
+  const em=b.dataset.t;
+  if(!confirm('Envoyer un lien de réinitialisation du mot de passe à '+em+' ?')) return;
+  const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
+  b.textContent=error?'Échec : '+error.message:'Lien envoyé ✓';
+}
+function recoveryView(){
+  recovering=true;
+  $('app').innerHTML=`<div class="card auth"><div class="brand" style="margin-bottom:12px"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
+  <p style="color:var(--mute)">Choisissez votre nouveau mot de passe.</p>
+  <input id="np" type="password" placeholder="Nouveau mot de passe (6 caractères minimum)" autocomplete="new-password">
+  <input id="np2" type="password" placeholder="Confirmez le mot de passe" autocomplete="new-password">
+  <div class="row"><button class="p" onclick="setPw()">Enregistrer le mot de passe</button></div><div class="msg" id="am"></div></div>`;
+}
+async function setPw(){
+  const a=$('np').value, b=$('np2').value, am=$('am');
+  if(a.length<6) return am.textContent='6 caractères minimum.';
+  if(a!==b) return am.textContent='Les deux mots de passe ne correspondent pas.';
+  const {error}=await sb.auth.updateUser({password:a});
+  if(error) return am.textContent='Échec : '+error.message;
+  recovering=false; history.replaceState(null,'',location.pathname); start();
+}
+sb.auth.onAuthStateChange(ev=>{ if(ev==='PASSWORD_RECOVERY') recoveryView(); });
+
 const greet = () => new Date().getHours() < 18 ? 'Bonjour' : 'Bonsoir';
 let me = null, viewId = null, tab = null, weekStart = monday(new Date()), days = [], notice = '';
 
@@ -205,6 +241,7 @@ async function logout(){
 }
 
 async function start(){
+  if(recovering) return recoveryView();
   const {data:{session}} = await sb.auth.getSession();
   if(!session) return authView();
   const {data,error} = await sb.from('profiles').select('*').eq('id',session.user.id).single();
@@ -296,7 +333,7 @@ function dashCard(profiles,rows,hStart){
   </div>`;
 }
 
-function agentView(vu,profiles,hist,hStart,mm){
+function agentView(vu,profiles,hist,hStart,mm,lastBy){
   const from=iso(days[0]),to=iso(days[6]),today=iso(new Date());
   const dayT={},models={};
   hist.forEach(r=>{
@@ -311,7 +348,7 @@ function agentView(vu,profiles,hist,hStart,mm){
   const m=mm||{};
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
   <select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.filter(p=>p.role!=='admin').map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select></div>
-  <p class="hint" style="margin:8px 0 0">${esc(vu.email)} · Mobile Money : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}</p></div>
+  <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Mobile Money : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}</p></div>
   <div class="tiles">
     <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
     <div class="k"><span>Taux de commission</span><b>${pct(vu.commission)}</b></div>
@@ -325,6 +362,7 @@ function agentView(vu,profiles,hist,hStart,mm){
 }
 
 async function show(){
+  if(recovering) return;
   days = [...Array(7)].map((_,i)=>{
     const d=new Date(weekStart); d.setDate(d.getDate()+i); return d;
   });
@@ -332,15 +370,17 @@ async function show(){
   const t=admin?tab:'reports';
   const hStart=new Date(weekStart);
   hStart.setDate(hStart.getDate()-(STAT_WEEKS-1)*7);
-  let profiles=[me], rows=[];
+  let profiles=[me], rows=[], lastBy={};
 
   try{
     if(admin){
-      const [p,e]=await Promise.all([
+      const [p,e,l]=await Promise.all([
         sb.from('profiles').select('*').order('full_name'),
-        allEntries(iso(hStart),to)
+        allEntries(iso(hStart),to),
+        sb.from('model_entries').select('user_id,day').order('day',{ascending:false}).limit(1000)
       ]);
       profiles=p.data||[me]; rows=e;
+      (l.data||[]).forEach(r=>{ if(!lastBy[r.user_id]) lastBy[r.user_id]=r.day; });
     }else rows=await allEntries(iso(hStart),to,me.id);
   }catch(err){
     $('app').innerHTML=`<div class="card"><div class="msg">Chargement impossible : ${esc(err.message)}</div><button onclick="show()">Réessayer</button></div>`;
@@ -373,17 +413,17 @@ async function show(){
   });
   const mine=byU[vu.id]||{};
 
-  let dash='', team='';
+  let dash='', team='', access='';
   if(admin && t==='dash') dash=dashCard(profiles,rows,hStart);
 
   let agent='';
-  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne)+statsCard(vu,hist,hStart);
+  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+statsCard(vu,hist,hStart);
 
   if(admin && t==='team'){
-    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">L'adresse email sert d'identifiant de connexion. Les mots de passe sont chiffrés par Supabase et ne peuvent pas être consultés ; pour en réinitialiser un, utilisez Authentication › Users dans Supabase.</p><table><tr><th>Agent</th><th>Email</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
+    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
     ${profiles.map(p=>{
       const m=mmBy[p.id];
-      return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||'(sans nom)')}</a></td><td>${esc(p.email)}</td>
+      return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||'(sans nom)')}</a></td><td>${esc(p.email)}</td><td>${badge(lastBy[p.id])}</td>
       <td>${m&&m.number?esc(m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
       <td><select onchange="upd('${p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(p.commission))}</select></td>
       <td><select ${p.id===me.id?'disabled title="Vous ne pouvez pas modifier votre propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
@@ -396,10 +436,21 @@ async function show(){
     notice='';
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['team','👥 Équipe']]
+  if(admin && t==='access'){
+    access=`<div class="card"><h2>Accès et identifiants</h2>
+    <p class="hint">L'identifiant de connexion est l'adresse email. Pour des raisons de sécurité, les mots de passe sont chiffrés par Supabase : personne, y compris l'administrateur, ne peut les consulter. En cas d'oubli, envoyez à l'agent un lien de réinitialisation par email.</p>
+    <table><tr><th>Agent</th><th>Identifiant (email)</th><th>Mot de passe</th><th>Statut</th><th>Action</th></tr>
+    ${profiles.map(p=>`<tr><td>${esc(p.full_name||'(sans nom)')}</td>
+      <td>${esc(p.email)} <button type="button" data-t="${esc(p.email)}" onclick="copyTxt(this)">Copier</button></td>
+      <td><span style="color:var(--mute)">🔒 Chiffré</span></td><td>${badge(lastBy[p.id])}</td>
+      <td><button type="button" data-t="${esc(p.email)}" onclick="resetPw(this)">Envoyer un lien de réinitialisation</button></td></tr>`).join('')}</table>
+    <p class="hint" style="margin-top:10px">Pour que le lien ramène l'agent sur cette page, renseignez l'adresse de votre site dans Supabase : Authentication › URL Configuration › Site URL.</p></div>`;
+  }
+
+  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['team','👥 Équipe'],['access','🔑 Accès']]
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
 
-  const weekBar=t==='team'?'':`<div class="card"><div class="row">
+  const weekBar=(t==='team'||t==='access')?'':`<div class="card"><div class="row">
     <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
     <input type="date" value="${from}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
     <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
@@ -418,18 +469,13 @@ async function show(){
       <div id="ln_${k}">${r.models.map(lineHtml).join('')}</div>
       <button type="button" onclick="addLine('${k}')">＋ Ajouter un modèle</button></div>`;
   }).join('')}
-  <div class="tot">
-    <div><span>CA de la semaine</span><b id="tca">0</b></div>
-    <div><span>Taux de commission</span><select id="rate" onchange="calc()" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select></div>
-    <div><span>Commission</span><b id="tco">0</b></div>
-    <div><span>Commission (Ar)</span><b id="tar">0</b></div>
-  </div>
+  <div class="tot"><div><span>CA total de la semaine</span><b id="tca">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
   ${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne)}`;
 
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}${weekBar}${dash}${agent}${report}${team}`;
+  ${nav}${weekBar}${dash}${agent}${report}${team}${access}`;
   if(t==='reports'&&!admin) calc();
 }
 
@@ -455,7 +501,7 @@ function statsCard(vu,rows,hStart){
     <div><span>Évolution hebdomadaire</span><b class="${evoCls(evo)}">${evoTxt(evo)}</b></div>
     <div><span>Meilleure journée</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
     <div><span>Jours d'activité</span><b>${worked}</b></div>
-    <div><span>Commission estimée</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>
+    ${me.role==='admin'?`<div><span>Commission estimée</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>`:''}
   </div>${bars(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
 }
 
@@ -491,17 +537,12 @@ function calc(){
     ca+=daily;
     $('dayca_'+k).textContent=fmt(daily);
   });
-  const r=(+$('rate').value||0)/100;
   $('tca').textContent=fmt(ca);
-  $('tco').textContent=fmt(ca*r);
-  $('tar').textContent=fmt(ca*r*AR_MULT);
 }
 
 async function save(uid){
   const status=$('sm');
   const fail=t=>{ status.className='msg'; status.textContent=t; };
-  const v=+$('rate').value;
-  if(!(v>0&&v<=100)) return fail('Veuillez choisir un taux de commission dans la liste.');
   let desired=[];
   for(const d of days){
     const k=iso(d);
@@ -528,12 +569,11 @@ async function save(uid){
       .eq('user_id',uid).eq('day',r.day).eq('model_name',r.model_name);
     if(error) return fail('Erreur : '+error.message);
   }
-  const {error:profileError}=await sb.from('profiles').update({commission:v/100}).eq('id',uid);
   await show();
   const st=$('sm');
   if(st){
-    st.className=profileError?'msg':'ok';
-    st.textContent=profileError?'Rapport enregistré, mais le taux n\'a pas pu être mis à jour : '+profileError.message:'Rapport enregistré avec succès.';
+    st.className='ok';
+    st.textContent='Rapport enregistré avec succès.';
   }
 }
 
