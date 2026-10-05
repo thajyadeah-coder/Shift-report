@@ -233,8 +233,8 @@ const hasAg = k => Object.prototype.hasOwnProperty.call(agMap,k);
 function objData(goals,rows,dayRows,day){
   const from=iso(days[0]),to=iso(days[6]),today=iso(new Date());
   day=day||today;
-  const wk={},td={},dayCA={}; let wTot=0,tTot=0,doneCA=0;
-  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; dayCA[r.day]=(dayCA[r.day]||0)+ca; if(r.day<today) doneCA+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; });
+  const wk={},td={},dayCA={},wd={}; let wTot=0,tTot=0,doneCA=0;
+  rows.forEach(r=>{ if(r.day<from||r.day>to) return; const ca=Number(r.ca||0); wTot+=ca; dayCA[r.day]=(dayCA[r.day]||0)+ca; if(r.day<today) doneCA+=ca; wk[mkey(r.model_name)]=(wk[mkey(r.model_name)]||0)+ca; const mk=mkey(r.model_name); (wd[mk]=wd[mk]||{})[r.day]=(wd[mk][r.day]||0)+ca; });
   dayRows.forEach(r=>{ const ca=Number(r.ca||0); tTot+=ca; td[mkey(r.model_name)]=(td[mkey(r.model_name)]||0)+ca; });
   // Valeur par défaut d'un jour sans objectif fixé : somme des objectifs des modèles
   const base=goals.reduce((s,g)=>s+Number(g.daily_goal||0),0);
@@ -242,7 +242,7 @@ function objData(goals,rows,dayRows,day){
   const dayGoal=goalOf(day), todayGoal=goalOf(today);
   const weekGoal=days.reduce((s,d)=>s+goalOf(iso(d)),0);
   const doneGoal=days.reduce((s,d)=>iso(d)<today?s+goalOf(iso(d)):s,0);
-  return {wk,td,dayCA,wTot,tTot,doneCA,base,goalOf,dayGoal,todayGoal,weekGoal,doneGoal,day,isToday:day===today,daySet:hasAg(day)};
+  return {wk,wd,td,dayCA,wTot,tTot,doneCA,base,goalOf,dayGoal,todayGoal,weekGoal,doneGoal,day,isToday:day===today,daySet:hasAg(day)};
 }
 function catchUp(o){
   if(!o.weekGoal) return '';
@@ -510,7 +510,7 @@ function dashCard(profiles,rows,hStart){
     m.ca+=ca;
   });
   const ag=profiles.map(p=>({p,ca:cur[p.id]||0})).sort((a,b)=>b.ca-a.ca);
-  const tca=ag.reduce((s,a)=>s+a.ca,0);
+  const tca=Object.values(cur).reduce((s,x)=>s+x,0); // toutes les saisies de la semaine, comme les objectifs
   const tco=ag.reduce((s,a)=>s+a.ca*a.p.commission,0);
   const act=ag.filter(a=>a.ca>0).length;
   const evo=evoOf(weeks[STAT_WEEKS-1].ca,weeks[STAT_WEEKS-2].ca);
@@ -602,7 +602,7 @@ async function show(){
   const goals=md.error?null:(md.data||[]);
   MODEL_NAMES=(goals||[]).map(g=>String(g.name).trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
   agMap={}; agOk=true;
-  if(admin && (t==='dash'||t==='goals')){
+  if(admin && (t==='dash'||t==='goals'||t==='perf')){
     const td0=iso(new Date()), lo=td0<from?td0:from, hi=td0>to?td0:to;
     const a=await sb.from('agency_goals').select('day,amount').gte('day',lo).lte('day',hi);
     if(a.error) agOk=false; else (a.data||[]).forEach(r=>{ agMap[r.day]=Number(r.amount); });
@@ -649,7 +649,7 @@ async function show(){
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
   let dash='', team='', access='', perf='';
-  if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu);
+  if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu,objData(goals||[],rows,tr,objD));
   if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
 
   let agent='';
@@ -692,9 +692,15 @@ async function show(){
       return `<tr><td>${esc(g.name)}</td>
         <td><input type="text" inputmode="decimal" style="width:100px" value="${gl}" onchange="setGoal('${g.id}',this.value)" aria-label="Objectif journalier"></td>
         <td>${fmt(td)}</td><td style="min-width:130px">${gl>0?pbar(td,gl):''}</td><td>${gl>0?dayBadge(o.day,td,gl):'—'}</td>
-        <td>${fmt(w)} / ${fmt(gl*7)}</td>
+        ${days.map(d=>{ const v=(o.wd[k]||{})[iso(d)]||0; return `<td${iso(d)===o.day?' style="background:rgba(31,111,92,.08)"':''}>${v?fmt(v):'<span style="color:var(--mute)">—</span>'}</td>`; }).join('')}
+        <td>${fmt(w)} / ${fmt(gl*7)}</td><td style="min-width:130px">${gl>0?pbar(w,gl*7):''}</td>
         <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
     }).join('');
+    // saisies dont le nom n'est plus dans la liste des modèles : on les garde pour que les totaux restent exacts
+    const listed=new Set((goals||[]).map(g=>mkey(g.name)));
+    const oth=days.map(d=>Object.keys(o.wd).reduce((s,k)=>listed.has(k)?s:s+((o.wd[k]||{})[iso(d)]||0),0));
+    const othW=oth.reduce((s,x)=>s+x,0), othD=Object.keys(o.td).reduce((s,k)=>listed.has(k)?s:s+o.td[k],0);
+    const othersRow=othW>0?`<tr><td>Hors liste</td><td>—</td><td>${fmt(othD)}</td><td></td><td></td>${oth.map(v=>`<td>${v?fmt(v):'<span style="color:var(--mute)">—</span>'}</td>`).join('')}<td>${fmt(othW)}</td><td></td><td></td></tr>`:'';
     goalsTab=cuCard(cu,cuOk,cuCA)+agencyCard(o)+`<div class="card"><h2>Ajouter un modèle et son objectif journalier</h2>
     <p class="hint">Les agents ne peuvent que choisir un modèle dans cette liste : ajoutez ici chaque modèle une seule fois, c'est la seule source des noms (plus de fautes de frappe). Réutiliser un nom existant met à jour son objectif.</p>
     <div class="row"><input id="md_nm" placeholder="Nom du modèle"><input id="md_g" inputmode="decimal" placeholder="Objectif journalier (CA)"><button class="p" onclick="addModel()">Ajouter le modèle</button></div>
@@ -710,9 +716,9 @@ async function show(){
       <button onclick="shiftObjDay(1)" aria-label="Jour suivant">▶</button>
       <button onclick="pickObjDay('')" ${o.isToday?'disabled':''}>Aujourd'hui</button>
       <span style="color:var(--mute)">Suivi ${o.isToday?"d'aujourd'hui":'du'} <b style="text-transform:capitalize">${dayName(new Date(o.day+'T00:00:00'))}</b></span></div>
-    <p class="hint">Choisissez une date : les colonnes du jour (objectif, CA, progression, statut) et la semaine affichée se mettent à jour. Le CA de la semaine correspond à la semaine de cette date. Les objectifs par modèle servent de repère et de valeur par défaut pour l'agence quand aucun objectif n'a été fixé pour un jour.</p>
-    ${trs?`<table><tr><th>Modèle</th><th>Objectif / jour</th><th>CA ${lbl}</th><th>Progression</th><th>Statut</th><th>Semaine : CA / objectif</th><th></th></tr>${trs}
-    <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?dayBadge(o.day,o.tTot,o.dayGoal):'—'}</td><td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
+    <p class="hint">Choisissez une date : les colonnes du jour (objectif, CA, progression, statut) se mettent à jour. La semaine complète (lundi à dimanche) reste toujours affichée à droite, avec la date choisie surlignée ; la semaine suit cette date. Les objectifs par modèle servent de repère et de valeur par défaut pour l'agence quand aucun objectif n'a été fixé pour un jour.</p>
+    ${trs?`<table><tr><th>Modèle</th><th>Objectif / jour</th><th>CA ${lbl}</th><th>Progression</th><th>Statut</th>${days.map(d=>`<th${iso(d)===o.day?' style="color:var(--acc)"':''}>${dayShort(d)}</th>`).join('')}<th>Semaine : CA / objectif</th><th>Progression semaine</th><th></th></tr>${trs}${othersRow}
+    <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?dayBadge(o.day,o.tTot,o.dayGoal):'—'}</td>${days.map(d=>`<td>${fmt(o.dayCA[iso(d)]||0)}</td>`).join('')}<td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td style="min-width:130px">${pbar(o.wTot,o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
   }
 
   const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['perf','📈 CA par modèle'],['team','👥 Équipe'],['access','🔑 Accès']]
@@ -750,66 +756,82 @@ async function show(){
 
 // ---------- Suivi du CA par agent et par modèle (admin), filtré par semaine ----------
 function pickPerf(id){ viewId=id; show(); }
-function perfView(profiles,rows,goals,vu){
+function perfView(profiles,rows,goals,vu,o){
   const agents=profiles.filter(p=>p.role!=='admin')
     .sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr'));
   if(!agents.length) return '<div class="card"><p class="hint">Aucun agent pour le moment.</p></div>';
-  const ids=new Set(agents.map(a=>a.id)), from=iso(days[0]), to=iso(days[6]), today=iso(new Date());
+  const from=iso(days[0]), to=iso(days[6]), today=iso(new Date());
   const p0=new Date(days[0]); p0.setDate(p0.getDate()-7);
   const p6=new Date(days[6]); p6.setDate(p6.getDate()-7);
   const pf=iso(p0), pt=iso(p6);
   const wlabel=`${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}`;
+  const inW=r=>r.day>=from&&r.day<=to, inP=r=>r.day>=pf&&r.day<=pt;
+
+  // Mêmes chiffres que le tableau de bord : on compte TOUTES les saisies de la période.
+  // Les saisies d'un compte admin ou d'un compte retiré ont leur propre ligne (sinon les totaux ne correspondraient pas).
+  const byId=new Map(profiles.map(p=>[p.id,p]));
+  const agentIds=new Set(agents.map(a=>a.id));
+  const uk=id=>byId.has(id)?id:'__other';
+  const extraIds=new Set();
+  rows.forEach(r=>{ if((inW(r)||inP(r)) && !agentIds.has(r.user_id)) extraIds.add(uk(r.user_id)); });
+  const people=agents.map(a=>({id:a.id,name:a.full_name||a.email,link:true}));
+  [...extraIds].forEach(id=>{
+    const pr=byId.get(id);
+    people.push(pr?{id,name:(pr.full_name||pr.email)+' (admin)',link:false}:{id,name:'Comptes retirés / inconnus',link:false});
+  });
+
   // colonnes : modèles officiels puis noms hors liste présents dans les données de la semaine
   const cols=new Map();
   (goals||[]).forEach(g=>cols.set(mkey(g.name),{n:String(g.name).trim(),goal:Number(g.daily_goal||0)*7}));
   rows.forEach(r=>{
-    if(!ids.has(r.user_id)||r.day<from||r.day>to) return;
+    if(!inW(r)) return;
     const k=mkey(r.model_name); if(!cols.has(k)) cols.set(k,{n:String(r.model_name).trim(),goal:0,off:true});
   });
   const list=[...cols.entries()];
   const dash0=`<span style="color:var(--mute)">—</span>`;
 
-  // Agrégats de la semaine affichée (+ semaine précédente pour l'évolution)
   const m={}, colT={}, rowT={}, prevT={}, dayAg={}, dayT={}, mine={}, mT={};
   rows.forEach(r=>{
-    if(!ids.has(r.user_id)) return;
-    const k=mkey(r.model_name), ca=Number(r.ca||0), u=r.user_id;
-    if(r.day>=from&&r.day<=to){
+    const k=mkey(r.model_name), ca=Number(r.ca||0), u=uk(r.user_id);
+    if(inW(r)){
       (m[u]=m[u]||{})[k]=(m[u][k]||0)+ca;
       colT[k]=(colT[k]||0)+ca; rowT[u]=(rowT[u]||0)+ca;
       (dayAg[u]=dayAg[u]||{})[r.day]=(dayAg[u][r.day]||0)+ca;
       dayT[r.day]=(dayT[r.day]||0)+ca;
-      if(u===vu.id){ (mine[k]=mine[k]||{})[r.day]=(mine[k][r.day]||0)+ca; mT[k]=(mT[k]||0)+ca; }
-    }else if(r.day>=pf&&r.day<=pt) prevT[u]=(prevT[u]||0)+ca;
+      if(r.user_id===vu.id){ (mine[k]=mine[k]||{})[r.day]=(mine[k][r.day]||0)+ca; mT[k]=(mT[k]||0)+ca; }
+    }else if(inP(r)) prevT[u]=(prevT[u]||0)+ca;
   });
   const grand=Object.values(rowT).reduce((s,x)=>s+x,0);
   const prevGrand=Object.values(prevT).reduce((s,x)=>s+x,0);
-  const goalSum=list.reduce((s,[,c])=>s+c.goal,0);
   const ach=(v,g)=>g>0?`<span class="${v>=g?'up':''}">${Math.round(v/g*100)} %</span>`:'—';
   const evo=(c,pv0)=>{ const e=evoOf(c,pv0); return `<span class="${evoCls(e)}">${evoTxt(e)}</span>`; };
+  const nameCell=a=>a.link?`<a href="#" onclick="pickPerf('${a.id}');return false">${esc(a.name)}</a>`:esc(a.name);
 
   // 1) Semaine : agents × modèles
   const head=`<tr><th>Agent</th>${list.map(([,c])=>`<th>${esc(c.n)}${c.off?'<small>hors liste</small>':''}</th>`).join('')}<th>Total semaine</th><th>vs semaine préc.</th></tr>`;
-  const body=agents.map(a=>`<tr><td><a href="#" onclick="pickPerf('${a.id}');return false">${esc(a.full_name||a.email)}</a></td>
+  const body=people.map(a=>`<tr><td>${nameCell(a)}</td>
     ${list.map(([k])=>`<td>${m[a.id]&&m[a.id][k]?fmt(m[a.id][k]):dash0}</td>`).join('')}<td><b>${fmt(rowT[a.id]||0)}</b></td><td>${evo(rowT[a.id]||0,prevT[a.id]||0)}</td></tr>`).join('');
   const foot=`<tfoot><tr><td>Total agence</td>${list.map(([k])=>`<td>${fmt(colT[k]||0)}</td>`).join('')}<td>${fmt(grand)}</td><td>${evo(grand,prevGrand)}</td></tr>
-    <tr style="font-weight:400"><td>Objectif semaine</td>${list.map(([,c])=>`<td>${c.goal>0?fmt(c.goal):'—'}</td>`).join('')}<td>${goalSum>0?fmt(goalSum):'—'}</td><td></td></tr>
-    <tr style="font-weight:400"><td>Atteinte</td>${list.map(([k,c])=>`<td>${ach(colT[k]||0,c.goal)}</td>`).join('')}<td>${ach(grand,goalSum)}</td><td></td></tr></tfoot>`;
+    <tr style="font-weight:400"><td>Objectif semaine</td>${list.map(([,c])=>`<td>${c.goal>0?fmt(c.goal):'—'}</td>`).join('')}<td>${o.weekGoal>0?fmt(o.weekGoal):'—'}</td><td></td></tr>
+    <tr style="font-weight:400"><td>Atteinte</td>${list.map(([k,c])=>`<td>${ach(colT[k]||0,c.goal)}</td>`).join('')}<td>${ach(grand,o.weekGoal)}</td><td></td></tr></tfoot>`;
   const card1=`<div class="card"><h2>CA de la semaine du ${wlabel} — par agent et par modèle</h2>
-    <p class="hint">Filtré par la semaine affichée (barre du haut). Chaque case est le CA total de l'agent pour ce modèle sur la semaine ; l'objectif de la semaine d'un modèle est son objectif journalier × 7 ; « vs semaine préc. » compare le total de l'agent à la semaine d'avant. Cliquez sur un agent pour le détail ci-dessous.</p>
+    <p class="hint">Filtré par la semaine affichée (barre du haut). Chaque case est le CA de l'agent pour ce modèle sur la semaine ; « vs semaine préc. » compare son total à la semaine d'avant. Le total de la semaine est le même que sur le tableau de bord et il est comparé à l'objectif de l'agence fixé jour par jour (onglet Objectifs) ; les objectifs par modèle (objectif journalier × 7) sont indicatifs et ne s'additionnent pas forcément à ce total.</p>
     <table>${head}${body}${foot}</table></div>`;
 
-  // 2) Évolution de chaque agent jour après jour
+  // 2) Évolution de chaque agent jour après jour, avec l'objectif de l'agence de chaque jour
   const dh=days.map(d=>`<th${iso(d)===today?' style="color:var(--acc)"':''}>${dayShort(d)}</th>`).join('');
-  const arows=agents.map(a=>`<tr><td><a href="#" onclick="pickPerf('${a.id}');return false">${esc(a.full_name||a.email)}</a></td>
-    ${days.map(d=>{ const v=(dayAg[a.id]||{})[iso(d)]; return `<td${iso(d)===today?' style="background:rgba(31,111,92,.08)"':''}>${v?fmt(v):dash0}</td>`; }).join('')}<td><b>${fmt(rowT[a.id]||0)}</b></td></tr>`).join('');
-  const afoot=`<tfoot><tr><td>Total agence</td>${days.map(d=>`<td>${fmt(dayT[iso(d)]||0)}</td>`).join('')}<td>${fmt(grand)}</td></tr></tfoot>`;
+  const hl=d=>iso(d)===today?' style="background:rgba(31,111,92,.08)"':'';
+  const arows=people.map(a=>`<tr><td>${nameCell(a)}</td>
+    ${days.map(d=>{ const v=(dayAg[a.id]||{})[iso(d)]; return `<td${hl(d)}>${v?fmt(v):dash0}</td>`; }).join('')}<td><b>${fmt(rowT[a.id]||0)}</b></td></tr>`).join('');
+  const afoot=`<tfoot><tr><td>Total agence</td>${days.map(d=>`<td>${fmt(dayT[iso(d)]||0)}</td>`).join('')}<td>${fmt(grand)}</td></tr>
+    <tr style="font-weight:400"><td>Objectif agence</td>${days.map(d=>`<td>${fmt(o.goalOf(iso(d)))}</td>`).join('')}<td>${fmt(o.weekGoal)}</td></tr>
+    <tr style="font-weight:400"><td>Atteinte</td>${days.map(d=>`<td>${ach(dayT[iso(d)]||0,o.goalOf(iso(d)))}</td>`).join('')}<td>${ach(grand,o.weekGoal)}</td></tr></tfoot>`;
   const card2=`<div class="card"><h2>Évolution de chaque agent — CA par jour</h2>
-    <p class="hint">Semaine du ${wlabel}. La colonne d'aujourd'hui est surlignée.</p>
+    <p class="hint">Semaine du ${wlabel}. La colonne d'aujourd'hui est surlignée. L'objectif de chaque jour est celui fixé pour l'agence.</p>
     <table><tr><th>Agent</th>${dh}<th>Total semaine</th></tr>${arows}${afoot}</table></div>`;
 
   // 3) Détail d'un agent : modèle × jour
-  const drows=list.map(([k,c])=>`<tr><td>${esc(c.n)}</td>${days.map(d=>{ const v=(mine[k]||{})[iso(d)]; return `<td${iso(d)===today?' style="background:rgba(31,111,92,.08)"':''}>${v?fmt(v):dash0}</td>`; }).join('')}<td><b>${mT[k]?fmt(mT[k]):'—'}</b></td></tr>`).join('');
+  const drows=list.map(([k,c])=>`<tr><td>${esc(c.n)}</td>${days.map(d=>{ const v=(mine[k]||{})[iso(d)]; return `<td${hl(d)}>${v?fmt(v):dash0}</td>`; }).join('')}<td><b>${mT[k]?fmt(mT[k]):'—'}</b></td></tr>`).join('');
   const mineTot=Object.values(mT).reduce((s,x)=>s+x,0);
   const dfoot=`<tfoot><tr><td>Total du jour</td>${days.map(d=>`<td>${fmt((dayAg[vu.id]||{})[iso(d)]||0)}</td>`).join('')}<td>${fmt(mineTot)}</td></tr></tfoot>`;
   const card3=`<div class="card"><div class="row" style="justify-content:space-between;margin-bottom:8px"><h2 style="margin:0">CA journalier par modèle — ${esc(vu.full_name||vu.email)}</h2>
