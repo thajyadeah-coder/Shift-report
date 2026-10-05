@@ -288,9 +288,9 @@ function pickObjDay(v){
 function shiftObjDay(n){
   const d=new Date((objDay||iso(new Date()))+'T00:00:00'); d.setDate(d.getDate()+n); pickObjDay(iso(d));
 }
-function objSummary(goals,rows,tr){
+function objSummary(goals,rows,tr,day){
   if(goals===null) return '';
-  const o=objData(goals,rows,tr);
+  const o=objData(goals,rows,tr,day);
   return (o.dayGoal||o.weekGoal) ? objTiles(o) : '<p class="hint">Aucun objectif défini : fixez l\'objectif de l\'agence du jour dans l\'onglet Objectifs.</p>';
 }
 function agencyCard(o){
@@ -591,7 +591,10 @@ async function show(){
     return;
   }
 
-  const objD=(t==='goals'&&objDay)?objDay:iso(new Date());
+  // Jour de référence des « CA d'aujourd'hui » : toujours un jour de la semaine affichée
+  // (date choisie, sinon aujourd'hui si la semaine le contient, sinon le 1er jour d'une semaine à venir / le dernier d'une semaine passée)
+  const todayIso=iso(new Date());
+  const objD=(objDay&&objDay>=from&&objDay<=to)?objDay:(todayIso>=from&&todayIso<=to)?todayIso:(todayIso<from?from:to);
   const [md,tr]=await Promise.all([
     sb.from('models').select('*').order('name'),
     admin ? allEntries(objD,objD).catch(()=>[]) : Promise.resolve([])
@@ -647,7 +650,7 @@ async function show(){
   }
   let dash='', team='', access='', perf='';
   if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu);
-  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr)+dashCard(profiles,rows,hStart);
+  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
 
   let agent='';
   if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+statsCard(vu,hist,hStart);
