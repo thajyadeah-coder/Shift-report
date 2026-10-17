@@ -8,6 +8,7 @@
 :root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--acc2:#6fd3b9;--card:#fff;--err:#b3261e;--warn:#c77700}
 @media(prefers-color-scheme:dark){:root{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--acc2:#2f8f78;--card:#1c242c;--err:#ff8a80;--warn:#f0b24a}}
 *{box-sizing:border-box}
+[hidden]{display:none!important}
 body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
 main{max-width:1100px;margin:0 auto;padding:16px}
 header{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:14px}
@@ -104,6 +105,37 @@ const sanSum = (uid,f,t) => SAN.filter(r=>(!uid||r.user_id===uid)&&r.day>=f&&r.d
 // Commission nette = commission brute (CA × taux) − sanctions de la période, jamais en dessous de 0
 const netCo = (brute,san) => Math.max(brute-san,0);
 let sanUser = null, sanDay = null;
+
+// ---------- Recherche rapide (admin) : filtre l'affichage sans recharger les données ----------
+let SEARCH = '';
+const nrm = s => String(s ?? '').toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'');
+function setSearch(v){ SEARCH = v; applyFilter(); }
+function applyFilter(){
+  const root = $('adm'); if(!root) return;
+  const q = nrm(SEARCH).trim();
+  let visible = 0;
+  // Tableaux : une ligne reste visible si son nom (agent, modèle, email…) contient la recherche.
+  // Tableau agents × modèles : si aucun agent ne correspond mais qu'un modèle correspond, on filtre les colonnes.
+  root.querySelectorAll('table:not([data-nf])').forEach(tb=>{
+    const rows=[...tb.querySelectorAll('tr')].filter(r=>r.querySelector('td') && !r.closest('tfoot'));
+    const nc=Number(tb.dataset.fc||2);
+    const txt=r=>nrm([...r.cells].slice(0,nc).map(c=>c.textContent).join(' '));
+    const hit=rows.map(r=>!q || txt(r).includes(q));
+    const mc=[...tb.querySelectorAll('th[data-mc]')].map(th=>th.cellIndex);
+    const mcHit=q ? mc.filter(i=>nrm(tb.rows[0].cells[i].textContent).includes(q)) : [];
+    const useCols=!!q && mc.length>0 && !hit.some(Boolean) && mcHit.length>0;
+    rows.forEach((r,i)=>{ r.hidden = !(useCols || hit[i]); if(!r.hidden) visible++; });
+    [...tb.rows].forEach(r=>[...r.cells].forEach((c,i)=>{ c.hidden = useCols && mc.includes(i) && !mcHit.includes(i); }));
+  });
+  // Barres de classement (agents, modèles)
+  root.querySelectorAll('.hb').forEach(h=>{ h.hidden = !!q && !nrm(h.textContent).includes(q); if(!h.hidden) visible++; });
+  // Listes déroulantes d'agents : on masque les noms qui ne correspondent pas (le choix actuel reste visible)
+  root.querySelectorAll('select[aria-label="Choisir un agent"], #sn_u').forEach(s=>{
+    [...s.options].forEach(o=>{ const off=!!q && !nrm(o.textContent).includes(q) && !o.selected; o.hidden=off; o.disabled=off; });
+  });
+  const c=$('gqc');
+  if(c) c.textContent = q && visible===0 ? 'Aucun résultat pour « '+SEARCH.trim()+' »' : '';
+}
 
 const mmRow = r => r && ({userId:r.user_id,operator:r.operator,number:r.number,holder:r.holder,updatedAt:r.updated_at});
 
@@ -320,7 +352,7 @@ function agencyCard(o){
     <label>Même objectif pour les 7 jours<input id="ag_all" inputmode="decimal" placeholder="Ex. 1500"></label>
     <button class="p" onclick="fillAgencyWeek()">Appliquer à la semaine</button></div>
   <div id="ag_msg" class="msg"></div>
-  <table><tr><th>Jour</th><th>Objectif agence</th><th>CA réalisé</th><th>Progression</th><th>Statut</th></tr>${trs}
+  <table data-nf><tr><th>Jour</th><th>Objectif agence</th><th>CA réalisé</th><th>Progression</th><th>Statut</th></tr>${trs}
   <tfoot><tr><td>Semaine</td><td>${fmt(o.weekGoal)}</td><td>${fmt(o.wTot)}</td><td style="min-width:130px">${pbar(o.wTot,o.weekGoal)}</td><td>${o.weekGoal?stBadge(o.wTot,o.weekGoal):'—'}</td></tr></tfoot></table></div>`;
 }
 async function setAgencyGoal(day,v){
@@ -605,7 +637,7 @@ function sanCard(vu,ca,tiles){
     <div class="k"><span>Commission nette</span><b>${fmt(net)}</b><span>${fmt(net*AR_MULT)} Ar</span></div>
     <div class="s"><span>Sanctions cumulées (${STAT_WEEKS} semaines)</span><b>${fmt(cumul)}</b></div>
   </div>`:''}
-  ${keys.length?`<table><tr><th>Date</th><th>Motif</th><th>Total du jour</th><th>Total (Ar)</th></tr>
+  ${keys.length?`<table data-nf><tr><th>Date</th><th>Motif</th><th>Total du jour</th><th>Total (Ar)</th></tr>
     ${keys.map(k=>`<tr><td style="text-transform:capitalize">${dayName(new Date(k+'T00:00:00'))}</td>
       <td style="white-space:normal">${byDay[k].why.length?esc(byDay[k].why.join(' ; ')):'<span style="color:var(--mute)">—</span>'}</td>
       <td class="down"><b>${fmt(byDay[k].t)}</b></td><td>${fmt(byDay[k].t*AR_MULT)}</td></tr>`).join('')}
@@ -651,7 +683,7 @@ function sanAdminView(profiles,rows){
   <table><tr><th>Agent</th><th>CA</th><th>Taux</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${sum}
   <tfoot><tr><td>Total</td><td>${fmt(tCa)}</td><td></td><td>${fmt(tBr)}</td><td class="${tSan>0?'down':''}">${tSan>0?'− ':''}${fmt(tSan)}</td><td>${fmt(tNet)}</td><td>${fmt(tNet*AR_MULT)}</td></tr></tfoot></table></div>
   <div class="card"><h2>Sanctions de la semaine</h2>
-  ${list?`<table><tr><th>Date</th><th>Agent</th><th>Motif</th><th>Montant</th><th>Montant (Ar)</th><th></th></tr>${list}</table>`:'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
+  ${list?`<table data-fc="3"><tr><th>Date</th><th>Agent</th><th>Motif</th><th>Montant</th><th>Montant (Ar)</th><th></th></tr>${list}</table>`:'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
   notice='';
   return html;
 }
@@ -846,7 +878,8 @@ async function show(){
   }
 
   const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['perf','📈 CA par modèle'],['sanctions','⚠️ Sanctions'],['team','👥 Équipe'],['access','🔑 Accès']]
-    .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
+    .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>
+  <div class="row" style="margin-bottom:14px"><input id="gq" type="search" placeholder="🔍 Rechercher un agent ou un modèle…" aria-label="Recherche rapide" value="${esc(SEARCH)}" oninput="setSearch(this.value)" style="flex:1;min-width:220px;max-width:420px"><span id="gqc" class="hint" style="margin:0"></span></div>`:'';
 
   const weekBar=(t==='team'||t==='access')?'':`<div class="card"><div class="row">
     <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
@@ -874,7 +907,8 @@ async function show(){
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}`;
+  ${nav}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}</div>`;
+  if(admin) applyFilter();
   if(t==='reports'&&!admin) calc();
 }
 
@@ -932,7 +966,7 @@ function perfView(profiles,rows,goals,vu,o){
   const nameCell=a=>a.link?`<a href="#" onclick="pickPerf('${a.id}');return false">${esc(a.name)}</a>`:esc(a.name);
 
   // 1) Semaine : agents × modèles
-  const head=`<tr><th>Agent</th>${list.map(([,c])=>`<th>${esc(c.n)}${c.off?'<small>hors liste</small>':''}</th>`).join('')}<th>Total semaine</th><th>vs semaine préc.</th></tr>`;
+  const head=`<tr><th>Agent</th>${list.map(([,c])=>`<th data-mc>${esc(c.n)}${c.off?'<small>hors liste</small>':''}</th>`).join('')}<th>Total semaine</th><th>vs semaine préc.</th></tr>`;
   const body=people.map(a=>`<tr><td>${nameCell(a)}</td>
     ${list.map(([k])=>`<td>${m[a.id]&&m[a.id][k]?fmt(m[a.id][k]):dash0}</td>`).join('')}<td><b>${fmt(rowT[a.id]||0)}</b></td><td>${evo(rowT[a.id]||0,prevT[a.id]||0)}</td></tr>`).join('');
   const foot=`<tfoot><tr><td>Total agence</td>${list.map(([k])=>`<td>${fmt(colT[k]||0)}</td>`).join('')}<td>${fmt(grand)}</td><td>${evo(grand,prevGrand)}</td></tr>
