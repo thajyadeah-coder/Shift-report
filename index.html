@@ -32,6 +32,7 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .tiles{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:10px;margin-bottom:14px}
 .tiles div{border:1px solid var(--line);border-radius:10px;padding:10px 12px}.tiles span{display:block;color:var(--mute);font-size:13px}.tiles b{font-size:20px}
 .tiles .k{border-left:4px solid var(--acc)}
+.tiles .s{border-left:4px solid var(--err)}
 .up{color:var(--acc)!important}.down{color:var(--err)!important}
 .g2{display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:14px}.g2 .card{margin:0}
 .chart{width:100%;height:auto;display:block}.chart text{fill:var(--mute);font-size:11px}.chart .v{fill:var(--ink);font-weight:600}
@@ -94,6 +95,15 @@ const wk = (day,h) => Math.floor((new Date(day+'T00:00:00')-h+36e5)/(7*864e5));
 const evoOf = (c,p) => p>0 ? Math.round((c-p)/p*100) : null;
 const evoTxt = e => e===null ? '—' : (e>0?'+':'')+e+' %';
 const evoCls = e => e===null ? '' : e>=0 ? 'up' : 'down';
+
+// ---------- Sanctions ----------
+// SAN : sanctions de la période chargée (8 semaines jusqu'à la semaine affichée) ; l'agent ne reçoit que les siennes.
+// Une sanction est un montant (même unité que la commission) déduit de la commission de l'agent.
+let SAN = [], SAN_OK = true;
+const sanSum = (uid,f,t) => SAN.filter(r=>(!uid||r.user_id===uid)&&r.day>=f&&r.day<=t).reduce((s,r)=>s+Number(r.amount||0),0);
+// Commission nette = commission brute (CA × taux) − sanctions de la période, jamais en dessous de 0
+const netCo = (brute,san) => Math.max(brute-san,0);
+let sanUser = null, sanDay = null;
 
 const mmRow = r => r && ({userId:r.user_id,operator:r.operator,number:r.number,holder:r.holder,updatedAt:r.updated_at});
 
@@ -511,7 +521,9 @@ function dashCard(profiles,rows,hStart){
   });
   const ag=profiles.map(p=>({p,ca:cur[p.id]||0})).sort((a,b)=>b.ca-a.ca);
   const tca=Object.values(cur).reduce((s,x)=>s+x,0); // toutes les saisies de la semaine, comme les objectifs
-  const tco=ag.reduce((s,a)=>s+a.ca*a.p.commission,0);
+  // Commissions à verser = commission brute de chaque agent − ses sanctions de la semaine (jamais négative)
+  const tsan=sanSum(null,from,to);
+  const tco=ag.reduce((s,a)=>s+netCo(a.ca*a.p.commission,sanSum(a.p.id,from,to)),0);
   const act=ag.filter(a=>a.ca>0).length;
   const evo=evoOf(weeks[STAT_WEEKS-1].ca,weeks[STAT_WEEKS-2].ca);
   const today=iso(new Date());
@@ -519,8 +531,9 @@ function dashCard(profiles,rows,hStart){
 
   return `<div class="tiles">
     <div class="k"><span>Chiffre d'affaires</span><b>${fmt(tca)}</b><span class="${evoCls(evo)}">${evoTxt(evo)} vs semaine précédente</span></div>
-    <div class="k"><span>Commissions à verser</span><b>${fmt(tco)}</b></div>
+    <div class="k"><span>Commissions à verser</span><b>${fmt(tco)}</b>${SAN_OK?'<span>après déduction des sanctions</span>':''}</div>
     <div class="k"><span>Commissions (Ar)</span><b>${fmt(tco*AR_MULT)}</b></div>
+    ${SAN_OK?`<div class="s"><span>Sanctions de la semaine</span><b class="${tsan>0?'down':''}">${fmt(tsan)}</b></div>`:''}
     <div class="k"><span>Agents actifs</span><b>${act} / ${profiles.length}</b></div>
     <div class="k"><span>CA moyen par agent actif</span><b>${fmt(act?tca/act:0)}</b></div>
   </div>
@@ -547,7 +560,8 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy){
     const k=String(r.model_name).trim().toLocaleLowerCase('fr');
     (models[k]=models[k]||{n:r.model_name,ca:0}).ca+=ca;
   });
-  const ca=days.reduce((s,d)=>s+(dayT[iso(d)]||0),0), co=ca*vu.commission;
+  const ca=days.reduce((s,d)=>s+(dayT[iso(d)]||0),0), brute=ca*vu.commission;
+  const sw=sanSum(vu.id,from,to), co=netCo(brute,sw);
   const top=Object.values(models).sort((a,b)=>b.ca-a.ca).slice(0,6);
   const m=mm||{};
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
@@ -556,13 +570,110 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy){
   <div class="tiles">
     <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
     <div class="k"><span>Taux de commission</span><b>${pct(vu.commission)}</b></div>
-    <div class="k"><span>Commission</span><b>${fmt(co)}</b></div>
-    <div class="k"><span>Commission (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>
+    <div class="k"><span>Commission brute</span><b>${fmt(brute)}</b></div>
+    ${SAN_OK?`<div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>`:''}
+    <div class="k"><span>Commission nette</span><b>${fmt(co)}</b></div>
+    <div class="k"><span>Commission nette (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>
   </div>
   <div class="g2">
     <div class="card"><h2>CA par jour</h2><p class="hint">Semaine affichée.</p>${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA par jour')}</div>
     <div class="card"><h2>Modèles les plus vendus</h2><p class="hint">Les 6 premiers de la semaine.</p>${hbars(top.map(x=>({l:x.n,v:x.ca,r:fmt(x.ca)})),'Aucune activité enregistrée cette semaine.')}</div>
   </div>`;
+}
+
+// ---------- Sanctions : vue agent (ses sanctions par date) ----------
+// ca = CA de la semaine de l'agent ; tiles = afficher aussi le résumé de commission (désactivé là où il est déjà affiché)
+function sanCard(vu,ca,tiles){
+  if(!SAN_OK) return me.role==='admin' ? `<div class="card"><h2>Sanctions</h2><p class="msg">Table « sanctions » absente : exécutez le SQL fourni dans Supabase pour activer les sanctions.</p></div>` : '';
+  const from=iso(days[0]), to=iso(days[6]);
+  const list=SAN.filter(r=>r.user_id===vu.id&&r.day>=from&&r.day<=to);
+  const byDay={};
+  list.forEach(r=>{
+    const d=byDay[r.day]=byDay[r.day]||{t:0,why:[]};
+    d.t+=Number(r.amount||0); if(r.reason) d.why.push(r.reason);
+  });
+  const keys=Object.keys(byDay).sort();
+  const sw=list.reduce((s,r)=>s+Number(r.amount||0),0);
+  const cumul=sanSum(vu.id,'0000-01-01','9999-12-31'); // toute la période chargée (8 semaines)
+  const brute=ca*vu.commission, net=netCo(brute,sw);
+  const own=vu.id===me.id;
+  return `<div class="card"><h2>${own?'Mes sanctions':'Sanctions — '+esc(vu.full_name||vu.email)}</h2>
+  <p class="hint">Sanctions de la semaine affichée, regroupées par date. Le montant total des sanctions est déduit de la commission${own?' de la semaine':''}.</p>
+  ${tiles?`<div class="tiles">
+    <div class="k"><span>Commission brute (${fmt(ca)} × ${pct(vu.commission)})</span><b>${fmt(brute)}</b></div>
+    <div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>
+    <div class="k"><span>Commission nette</span><b>${fmt(net)}</b><span>${fmt(net*AR_MULT)} Ar</span></div>
+    <div class="s"><span>Sanctions cumulées (${STAT_WEEKS} semaines)</span><b>${fmt(cumul)}</b></div>
+  </div>`:''}
+  ${keys.length?`<table><tr><th>Date</th><th>Motif</th><th>Total du jour</th><th>Total (Ar)</th></tr>
+    ${keys.map(k=>`<tr><td style="text-transform:capitalize">${dayName(new Date(k+'T00:00:00'))}</td>
+      <td style="white-space:normal">${byDay[k].why.length?esc(byDay[k].why.join(' ; ')):'<span style="color:var(--mute)">—</span>'}</td>
+      <td class="down"><b>${fmt(byDay[k].t)}</b></td><td>${fmt(byDay[k].t*AR_MULT)}</td></tr>`).join('')}
+    <tfoot><tr><td>Total semaine</td><td></td><td class="down">${fmt(sw)}</td><td>${fmt(sw*AR_MULT)}</td></tr></tfoot></table>`
+  :'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
+}
+
+// ---------- Sanctions : espace admin ----------
+function sanAdminView(profiles,rows){
+  if(!SAN_OK) return `<div class="card"><h2>Sanctions</h2><p class="msg">Table « sanctions » absente : exécutez le SQL fourni dans Supabase pour activer les sanctions.</p></div>`;
+  const from=iso(days[0]), to=iso(days[6]), today=iso(new Date());
+  const agents=profiles.filter(p=>p.role!=='admin')
+    .sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr'));
+  if(!agents.length) return '<div class="card"><p class="hint">Aucun agent pour le moment.</p></div>';
+  const selU=agents.find(a=>a.id===sanUser)?sanUser:agents[0].id;
+  const selD=sanDay||(today>=from&&today<=to?today:from);
+  const week=SAN.filter(r=>r.day>=from&&r.day<=to).sort((a,b)=>a.day<b.day?1:a.day>b.day?-1:0);
+  const caBy={};
+  rows.forEach(r=>{ if(r.day>=from&&r.day<=to) caBy[r.user_id]=(caBy[r.user_id]||0)+Number(r.ca||0); });
+  const nameOf=id=>{ const p=profiles.find(x=>x.id===id); return p?(p.full_name||p.email):'Compte retiré'; };
+  let tCa=0,tBr=0,tSan=0,tNet=0;
+  const sum=agents.map(a=>{
+    const ca=caBy[a.id]||0, br=ca*a.commission, sn=sanSum(a.id,from,to), nt=netCo(br,sn);
+    tCa+=ca; tBr+=br; tSan+=sn; tNet+=nt;
+    return `<tr><td>${esc(a.full_name||a.email)}</td><td>${fmt(ca)}</td><td>${pct(a.commission)}</td><td>${fmt(br)}</td>
+      <td class="${sn>0?'down':''}">${sn>0?'− ':''}${fmt(sn)}</td><td><b>${fmt(nt)}</b></td><td>${fmt(nt*AR_MULT)}</td></tr>`;
+  }).join('');
+  const list=week.map(r=>`<tr><td>${dayShort(new Date(r.day+'T00:00:00'))}</td><td>${esc(nameOf(r.user_id))}</td>
+    <td style="white-space:normal">${r.reason?esc(r.reason):'<span style="color:var(--mute)">—</span>'}</td>
+    <td class="down"><b>${fmt(r.amount)}</b></td><td>${fmt(r.amount*AR_MULT)}</td>
+    <td><button type="button" data-id="${r.id}" onclick="delSanction(this)" aria-label="Supprimer la sanction" title="Supprimer">✕</button></td></tr>`).join('');
+  const html=`<div class="card mm"><h2>Ajouter une sanction</h2>
+  <p class="hint">Définissez le montant de la sanction d'un agent à une date donnée. Le montant est exprimé dans la même unité que la commission et il est déduit de la commission de l'agent (la commission nette ne descend jamais en dessous de 0). L'agent voit le total de ses sanctions par date dans son espace.</p>
+  <div class="row" style="align-items:flex-end">
+    <label>Agent<select id="sn_u">${agents.map(a=>`<option value="${a.id}" ${a.id===selU?'selected':''}>${esc(a.full_name||a.email)}</option>`).join('')}</select></label>
+    <label>Date<input id="sn_d" type="date" value="${selD}"></label>
+    <label>Montant<input id="sn_a" inputmode="decimal" placeholder="Ex. 5" style="width:110px"></label>
+    <label>Motif (facultatif)<input id="sn_r" maxlength="200" placeholder="Ex. Retard, erreur de saisie…" style="min-width:220px"></label>
+    <button class="p" onclick="addSanction()">Enregistrer la sanction</button></div>
+  <div id="sn_msg" class="${notice?'ok':'msg'}">${esc(notice)}</div></div>
+  <div class="card"><h2>Récapitulatif des commissions de la semaine</h2>
+  <p class="hint">Commission nette = CA × taux − sanctions de la semaine.</p>
+  <table><tr><th>Agent</th><th>CA</th><th>Taux</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${sum}
+  <tfoot><tr><td>Total</td><td>${fmt(tCa)}</td><td></td><td>${fmt(tBr)}</td><td class="${tSan>0?'down':''}">${tSan>0?'− ':''}${fmt(tSan)}</td><td>${fmt(tNet)}</td><td>${fmt(tNet*AR_MULT)}</td></tr></tfoot></table></div>
+  <div class="card"><h2>Sanctions de la semaine</h2>
+  ${list?`<table><tr><th>Date</th><th>Agent</th><th>Motif</th><th>Montant</th><th>Montant (Ar)</th><th></th></tr>${list}</table>`:'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
+  notice='';
+  return html;
+}
+async function addSanction(){
+  const uid=$('sn_u').value, day=$('sn_d').value, raw=$('sn_a').value.trim(), amt=num(raw);
+  const reason=$('sn_r').value.trim().slice(0,200), m=$('sn_msg');
+  m.className='msg';
+  if(!uid) return m.textContent='Choisissez un agent.';
+  if(!day) return m.textContent='Indiquez la date de la sanction.';
+  if(!raw||!Number.isFinite(amt)||amt<=0) return m.textContent='Indiquez un montant de sanction valide (nombre positif).';
+  const {error}=await sb.from('sanctions').insert({user_id:uid,day,amount:amt,reason:reason||null});
+  if(error) return m.textContent='Erreur : '+error.message;
+  sanUser=uid; sanDay=day;
+  weekStart=monday(new Date(day+'T00:00:00')); // afficher la semaine de la sanction saisie
+  notice='Sanction de '+fmt(amt)+' enregistrée.';
+  show();
+}
+async function delSanction(b){
+  if(!confirm('Supprimer cette sanction ?')) return;
+  const {error}=await sb.from('sanctions').delete().eq('id',b.dataset.id);
+  if(error) alert('Erreur : '+error.message);
+  show();
 }
 
 async function show(){
@@ -589,6 +700,17 @@ async function show(){
   }catch(err){
     $('app').innerHTML=`<div class="card"><div class="msg">Chargement impossible : ${esc(err.message)}</div><button onclick="show()">Réessayer</button></div>`;
     return;
+  }
+
+  // Sanctions de la période (8 semaines jusqu'à la semaine affichée) : toutes pour l'admin, uniquement les siennes pour l'agent
+  SAN=[]; SAN_OK=true;
+  {
+    let sq=sb.from('sanctions').select('id,user_id,day,amount,reason')
+      .gte('day',iso(hStart)).lte('day',to).order('day');
+    if(!admin) sq=sq.eq('user_id',me.id);
+    const sr=await sq;
+    if(sr.error) SAN_OK=false;
+    else SAN=(sr.data||[]).map(r=>({...r,amount:Number(r.amount||0)}));
   }
 
   // Jour de référence des « CA d'aujourd'hui » : toujours un jour de la semaine affichée
@@ -624,6 +746,7 @@ async function show(){
   }
   const vu=profiles.find(p=>p.id===viewId)||me;
   const hist=rows.filter(r=>r.user_id===vu.id);
+  const caW=hist.reduce((s,r)=>r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); // CA de la semaine affichée pour l'agent consulté
 
   const [mmAll,mmOne]=await Promise.all([
     admin ? mmApi('GET').catch(()=>[]) : Promise.resolve([]),
@@ -648,12 +771,13 @@ async function show(){
     const c=await sb.from('agent_credentials').select('user_id,password');
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
-  let dash='', team='', access='', perf='';
+  let dash='', team='', access='', perf='', sanTab='';
   if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu,objData(goals||[],rows,tr,objD));
   if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
+  if(admin && t==='sanctions') sanTab=sanAdminView(profiles,rows);
 
   let agent='';
-  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+statsCard(vu,hist,hStart);
+  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+sanCard(vu,caW,false)+statsCard(vu,hist,hStart);
 
   if(admin && t==='team'){
     team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
@@ -721,7 +845,7 @@ async function show(){
     <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?dayBadge(o.day,o.tTot,o.dayGoal):'—'}</td>${days.map(d=>`<td>${fmt(o.dayCA[iso(d)]||0)}</td>`).join('')}<td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td style="min-width:130px">${pbar(o.wTot,o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['perf','📈 CA par modèle'],['team','👥 Équipe'],['access','🔑 Accès']]
+  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['perf','📈 CA par modèle'],['sanctions','⚠️ Sanctions'],['team','👥 Équipe'],['access','🔑 Accès']]
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>`:'';
 
   const weekBar=(t==='team'||t==='access')?'':`<div class="card"><div class="row">
@@ -745,12 +869,12 @@ async function show(){
   }).join('')}
   <div class="tot"><div><span>CA total de la semaine</span><b id="tca">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
-  ${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne)}`;
+  ${sanCard(vu,caW,true)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne)}`;
 
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}${weekBar}${dash}${agent}${report}${goalsTab}${perf}${team}${access}`;
+  ${nav}${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}`;
   if(t==='reports'&&!admin) calc();
 }
 
@@ -851,7 +975,8 @@ function statsCard(vu,rows,hStart){
   });
   const tot=weeks.reduce((s,w)=>s+w.ca,0);
   const active=weeks.filter(w=>w.ca>0).length;
-  const co=tot*vu.commission;
+  // commission estimée nette : CA × taux − sanctions sur les mêmes 8 semaines
+  const co=netCo(tot*vu.commission,sanSum(vu.id,iso(hStart),iso(days[6])));
   const evo=evoOf(weeks[STAT_WEEKS-1].ca,weeks[STAT_WEEKS-2].ca);
 
   return `<div class="card"><h2>Performance — ${esc(vu.full_name||vu.email)}</h2>
@@ -862,7 +987,7 @@ function statsCard(vu,rows,hStart){
     <div><span>Évolution hebdomadaire</span><b class="${evoCls(evo)}">${evoTxt(evo)}</b></div>
     <div><span>Meilleure journée</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
     <div><span>Jours d'activité</span><b>${worked}</b></div>
-    ${me.role==='admin'?`<div><span>Commission estimée</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>`:''}
+    ${me.role==='admin'?`<div><span>Commission estimée${SAN_OK?' (nette)':''}</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>`:''}
   </div>${bars(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
 }
 
