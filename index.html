@@ -137,6 +137,21 @@ function applyFilter(){
   if(c) c.textContent = q && visible===0 ? 'Aucun résultat pour « '+SEARCH.trim()+' »' : '';
 }
 
+// Recherche d'agent dans l'onglet Agents : filtre les boutons d'agents ; Entrée ouvre le premier résultat
+let AGQ = '';
+function filterAgents(v){
+  AGQ = v;
+  const q = nrm(v).trim(), list = $('ag_list'); if(!list) return;
+  let n = 0;
+  list.querySelectorAll('button').forEach(b=>{ b.hidden = !!q && !b.dataset.n.includes(q); if(!b.hidden) n++; });
+  const c = $('ag_c');
+  if(c) c.textContent = q ? (n ? n+' agent'+(n>1?'s':'') : 'Aucun agent trouvé') : '';
+}
+function pickFirstAgent(){
+  const b = [...document.querySelectorAll('#ag_list button')].find(x=>!x.hidden);
+  if(b) pick(b.dataset.id);
+}
+
 const mmRow = r => r && ({userId:r.user_id,operator:r.operator,number:r.number,holder:r.holder,updatedAt:r.updated_at});
 
 async function mmApi(method, q, body){
@@ -599,6 +614,8 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy){
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
   <select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.filter(p=>p.role!=='admin').map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select></div>
   <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Mobile Money : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}</p></div>
+  <div class="card"><div class="row"><input id="ag_q" type="search" placeholder="🔍 Trouver un agent (nom ou email)…" aria-label="Rechercher un agent" value="${esc(AGQ)}" oninput="filterAgents(this.value)" onkeydown="if(event.key==='Enter')pickFirstAgent()" style="flex:1;min-width:220px;max-width:420px"><span id="ag_c" class="hint" style="margin:0"></span></div>
+  <div class="nav" id="ag_list" style="margin:10px 0 0">${profiles.filter(p=>p.role!=='admin').sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr')).map(p=>`<button type="button" class="${p.id===vu.id?'on':''}" data-id="${p.id}" data-n="${esc(nrm((p.full_name||'')+' '+(p.email||'')))}" onclick="pick('${p.id}')">${esc(p.full_name||p.email)}</button>`).join('')}</div></div>
   <div class="tiles">
     <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
     <div class="k"><span>Taux de commission</span><b>${pct(vu.commission)}</b></div>
@@ -909,6 +926,7 @@ async function show(){
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
   ${nav}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}</div>`;
   if(admin) applyFilter();
+  if(admin && $('ag_list')) filterAgents(AGQ);
   if(t==='reports'&&!admin) calc();
 }
 
