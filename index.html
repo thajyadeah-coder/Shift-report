@@ -50,7 +50,7 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .ln.nd,.lh.nd{grid-template-columns:2fr 1fr 40px}
 .ln input,.ln select{min-width:0;width:100%}.ln button{padding:8px 0}
 .lh{color:var(--mute);font-size:13px;font-weight:600;margin-bottom:8px}
-.bd{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;background:rgba(31,111,92,.15);color:var(--acc)}.bd.off{background:rgba(150,150,150,.2);color:var(--mute)}
+.bd{display:inline-block;padding:1px 9px;border-radius:999px;font-size:12px;font-weight:600;background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--acc)}.bd.off{background:rgba(150,150,150,.2);color:var(--mute)}
 .bd.warn{background:rgba(199,119,0,.15);color:var(--warn)}
 .tiles .bd{display:inline-block;font-size:12px;color:var(--acc)}.tiles .bd.warn{color:var(--warn)}
 .pg{display:block;height:10px;border-radius:5px;background:var(--line);min-width:90px;margin:6px 0}
@@ -60,24 +60,24 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .ln,.ln.nd{grid-template-columns:1fr 1fr 40px}.ln button{order:3}.ln .d{order:4;grid-column:1/-1}}
 
 /* ===== Habillage professionnel ===== */
-body{background:radial-gradient(1200px 500px at 85% -10%,rgba(31,111,92,.14),transparent 60%),radial-gradient(900px 400px at -10% 0%,rgba(111,211,185,.12),transparent 55%),var(--bg);background-attachment:fixed;-webkit-font-smoothing:antialiased}
+body{background:radial-gradient(1200px 500px at 85% -10%,color-mix(in srgb,var(--acc) 14%,transparent),transparent 60%),radial-gradient(900px 400px at -10% 0%,rgba(111,211,185,.12),transparent 55%),var(--bg);background-attachment:fixed;-webkit-font-smoothing:antialiased}
 header{position:sticky;top:0;z-index:20;margin:-16px -16px 16px;padding:12px 16px;background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
-.logo{background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 4px 12px rgba(31,111,92,.35);letter-spacing:.5px}
+.logo{background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 4px 12px color-mix(in srgb,var(--acc) 35%,transparent);letter-spacing:.5px}
 h1{letter-spacing:-.01em}
 h2{letter-spacing:-.005em}
 .card{border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -12px rgba(16,24,40,.12);transition:box-shadow .25s,transform .25s;animation:up .45s cubic-bezier(.2,.7,.2,1) both}
 .card:hover{box-shadow:0 2px 4px rgba(16,24,40,.05),0 16px 32px -14px rgba(16,24,40,.18)}
 @keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
 button{transition:background .15s,transform .1s,box-shadow .15s,border-color .15s}
-button:hover:not(:disabled){border-color:var(--acc);box-shadow:0 2px 8px rgba(31,111,92,.15)}
+button:hover:not(:disabled){border-color:var(--acc);box-shadow:0 2px 8px color-mix(in srgb,var(--acc) 15%,transparent)}
 button:active:not(:disabled){transform:scale(.97)}
 button:disabled{opacity:.5;cursor:default}
-button.p{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;font-weight:600;box-shadow:0 4px 12px -4px rgba(31,111,92,.5)}
-button.p:hover:not(:disabled){filter:brightness(1.07);box-shadow:0 6px 16px -4px rgba(31,111,92,.55)}
-input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(31,111,92,.18);outline:none}
+button.p{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;font-weight:600;box-shadow:0 4px 12px -4px color-mix(in srgb,var(--acc) 50%,transparent)}
+button.p:hover:not(:disabled){filter:brightness(1.07);box-shadow:0 6px 16px -4px color-mix(in srgb,var(--acc) 55%,transparent)}
+input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px color-mix(in srgb,var(--acc) 18%,transparent);outline:none}
 .nav{position:sticky;top:64px;z-index:10;padding:6px 0}
 .nav button{font-weight:500}
-.nav button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;box-shadow:0 4px 12px -4px rgba(31,111,92,.55)}
+.nav button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;box-shadow:0 4px 12px -4px color-mix(in srgb,var(--acc) 55%,transparent)}
 .tiles div{border-radius:12px;background:linear-gradient(180deg,var(--card),color-mix(in srgb,var(--bg) 40%,var(--card)));transition:transform .2s,box-shadow .2s}
 .tiles div:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(16,24,40,.25)}
 .tiles b{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
@@ -98,6 +98,40 @@ th{text-transform:uppercase;letter-spacing:.04em;font-size:11px;position:sticky;
 ::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
 @media(max-width:760px){header{margin:-16px -16px 12px}.nav{top:60px}}
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+
+/* ===== Thèmes : mode clair / sombre / auto + couleur d'accent ===== */
+:root[data-theme=dark]{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--acc2:#2f8f78;--card:#1c242c;--err:#ff8a80;--warn:#f0b24a}
+:root[data-theme=light]{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--acc2:#6fd3b9;--card:#fff;--err:#b3261e;--warn:#c77700}
+:root[data-theme=dark]{color-scheme:dark}:root[data-theme=light]{color-scheme:light}
+:root[data-accent=bleu]{--acc:#2563eb;--acc2:#60a5fa}
+:root[data-accent=violet]{--acc:#7c3aed;--acc2:#a78bfa}
+:root[data-accent=orange]{--acc:#c2410c;--acc2:#fb923c}
+:root[data-accent=rose]{--acc:#be185d;--acc2:#f472b6}
+@media(prefers-color-scheme:dark){
+:root[data-accent=bleu]:not([data-theme=light]){--acc:#60a5fa;--acc2:#2563eb}
+:root[data-accent=violet]:not([data-theme=light]){--acc:#a78bfa;--acc2:#7c3aed}
+:root[data-accent=orange]:not([data-theme=light]){--acc:#fb923c;--acc2:#c2410c}
+:root[data-accent=rose]:not([data-theme=light]){--acc:#f472b6;--acc2:#be185d}}
+:root[data-accent=bleu][data-theme=dark]{--acc:#60a5fa;--acc2:#2563eb}
+:root[data-accent=violet][data-theme=dark]{--acc:#a78bfa;--acc2:#7c3aed}
+:root[data-accent=orange][data-theme=dark]{--acc:#fb923c;--acc2:#c2410c}
+:root[data-accent=rose][data-theme=dark]{--acc:#f472b6;--acc2:#be185d}
+.ctl{display:flex;gap:6px;align-items:center}.ctl select{padding:6px 8px}.ctl button{padding:6px 10px}
+/* ===== Graphiques : courbes et anneaux ===== */
+.chart .ln-path{fill:none;stroke:var(--acc);stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.3s ease forwards}
+@keyframes draw{to{stroke-dashoffset:0}}
+.chart .area{opacity:0;animation:fade .9s .5s forwards}@keyframes fade{to{opacity:1}}
+.chart .dot{fill:var(--card);stroke:var(--acc);stroke-width:2.2;cursor:pointer;transition:r .15s}
+.chart .dot:hover{r:6.5}.chart .dot.cur{fill:var(--acc)}
+.dn{display:flex;gap:18px;align-items:center;flex-wrap:wrap}
+.donut{width:170px;height:170px;flex:none;animation:spin .9s cubic-bezier(.2,.7,.2,1) both}
+@keyframes spin{from{transform:rotate(-90deg) scale(.85);opacity:0}to{transform:none;opacity:1}}
+.donut circle.sg{transition:stroke-width .2s;cursor:pointer}.donut circle.sg:hover{stroke-width:7.5}
+.donut text{fill:var(--ink);text-anchor:middle}.donut .t1{font-size:5px;font-weight:700}.donut .t2{font-size:2.6px;fill:var(--mute)}
+.lg{flex:1;min-width:150px;display:grid;gap:6px;font-size:13px}
+.lg div{display:flex;align-items:center;gap:8px}.lg i{width:10px;height:10px;border-radius:3px;flex:none}
+.lg span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lg b{font-variant-numeric:tabular-nums}
+.sel{min-width:200px;font-weight:600}
 </style>
 </head>
 <body>
@@ -110,6 +144,18 @@ const SUPABASE_KEY = 'sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
 const AR_MULT = 3900;
 const CRYPTO_RATE = 1; // 1 unité de commission = 1 USDT (à adapter si besoin)
 // =========================
+// ---------- Apparence : mode clair / sombre / auto et couleur d'accent (mémorisés sur l'appareil) ----------
+const ACCENTS={vert:'Vert',bleu:'Bleu',violet:'Violet',orange:'Orange',rose:'Rose'};
+let UI={mode:'auto',accent:'vert'};
+try{ Object.assign(UI,JSON.parse(localStorage.getItem('sr-ui')||'{}')); }catch(e){}
+function applyUI(){
+  const r=document.documentElement; r.dataset.theme=UI.mode; r.dataset.accent=UI.accent;
+  try{ localStorage.setItem('sr-ui',JSON.stringify(UI)); }catch(e){}
+}
+const isDark=()=>UI.mode==='dark'||(UI.mode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
+function toggleDark(b){ UI.mode=isDark()?'light':'dark'; applyUI(); b.textContent=isDark()?'☀️':'🌙'; }
+function setAccent(v){ UI.accent=v; applyUI(); }
+applyUI();
 let recovering = /type=recovery/.test(location.hash);
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
 const sb2 = supabase.createClient(SUPABASE_URL, SUPABASE_KEY, {
@@ -578,6 +624,45 @@ function bars(items,label){
   <line class="grid" x1="${pl}" x2="${W-pr}" y1="${pt+ih}" y2="${pt+ih}"></line>${g}</svg>`;
 }
 
+// Courbe lissée avec aire dégradée (survol : valeur de chaque point)
+let CH_ID=0;
+function lineChart(items,label){
+  const W=640,H=220,pl=16,pr=16,pt=28,pb=30,max=Math.max(...items.map(i=>i.v),1)*1.12;
+  const n=items.length, ih=H-pt-pb, step=n>1?(W-pl-pr)/(n-1):0, id='lg'+(++CH_ID);
+  const P=items.map((it,i)=>[pl+i*step,pt+ih-it.v/max*ih]);
+  const cl=y=>Math.min(Math.max(y,pt),pt+ih);
+  let d=`M${P[0][0]},${P[0][1]}`;
+  for(let i=0;i<n-1;i++){
+    const p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||p2;
+    d+=` C${p1[0]+(p2[0]-p0[0])/6},${cl(p1[1]+(p2[1]-p0[1])/6)} ${p2[0]-(p3[0]-p1[0])/6},${cl(p2[1]-(p3[1]-p1[1])/6)} ${p2[0]},${p2[1]}`;
+  }
+  const area=d+` L${P[n-1][0]},${pt+ih} L${P[0][0]},${pt+ih} Z`;
+  const grid=[0,1,2,3].map(k=>`<line class="grid" x1="${pl}" x2="${W-pr}" y1="${pt+ih*k/3}" y2="${pt+ih*k/3}" stroke-dasharray="${k===3?'0':'3 4'}"></line>`).join('');
+  const dots=items.map((it,i)=>`<g><title>${esc(it.t||it.l)} : ${fmt(it.v)}</title>
+    <circle class="dot${i===n-1?' cur':''}" cx="${P[i][0]}" cy="${P[i][1]}" r="4.5"></circle>
+    ${it.v>0&&(n<=9||i===n-1)?`<text class="v" x="${P[i][0]}" y="${P[i][1]-11}" text-anchor="middle">${fmt(it.v)}</text>`:''}
+    <text x="${P[i][0]}" y="${H-10}" text-anchor="middle">${esc(it.l)}</text></g>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><defs>
+    <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--acc);stop-opacity:.38"></stop><stop offset="1" style="stop-color:var(--acc);stop-opacity:0"></stop></linearGradient></defs>
+    ${grid}<path class="area" d="${area}" fill="url(#${id})"></path><path class="ln-path" pathLength="1" d="${d}"></path>${dots}</svg>`;
+}
+// Anneau de répartition avec légende
+const PAL=['var(--acc)','#e0a030','#5b8def','#d6618a','#8b6fd6','#4db6c4','#9aa5b1'];
+function donut(items,unitLabel){
+  items=items.filter(i=>i.v>0);
+  const tot=items.reduce((s,i)=>s+i.v,0);
+  if(!tot) return '<p class="hint">Aucune activité enregistrée cette semaine.</p>';
+  let off=25;
+  const seg=items.map((it,i)=>{
+    const pc=it.v/tot*100, c=PAL[i%PAL.length];
+    const o=`<circle class="sg" cx="21" cy="21" r="15.9155" fill="none" stroke="${c}" stroke-width="6" stroke-dasharray="${Math.max(pc-.5,0.1)} ${100-Math.max(pc-.5,0.1)}" stroke-dashoffset="${off}"><title>${esc(it.l)} : ${fmt(it.v)} (${Math.round(pc*10)/10} %)</title></circle>`;
+    off-=pc; return o;
+  }).join('');
+  const lg=items.map((it,i)=>`<div><i style="background:${PAL[i%PAL.length]}"></i><span title="${esc(it.l)}">${esc(it.l)}</span><b>${Math.round(it.v/tot*1000)/10} %</b></div>`).join('');
+  return `<div class="dn"><svg class="donut" viewBox="0 0 42 42" role="img" aria-label="Répartition">${seg}
+    <text class="t1" x="21" y="21.8">${fmt(tot)}</text><text class="t2" x="21" y="26">${esc(unitLabel||'total')}</text></svg><div class="lg">${lg}</div></div>`;
+}
+
 function hbars(items,empty){
   if(!items.length) return `<p class="hint">${empty}</p>`;
   const max=Math.max(...items.map(i=>i.v),1);
@@ -598,9 +683,9 @@ const weekItems = weeks => weeks.map((w,i)=>({
   t:'Semaine du '+w.d.toLocaleDateString('fr-FR')
 }));
 
-// ---------- Analyse par taux de commission (admin) : une carte par taux, sans addition entre les taux ----------
+// ---------- Analyse par taux de commission (admin) : un taux à choisir dans une liste, sans addition entre les taux ----------
 let RATE_SEL = null;
-function pickRate(r){ RATE_SEL = (r===RATE_SEL) ? null : r; show(); }
+function pickRate(v){ RATE_SEL = v==='' ? null : Number(v); show(); }
 function rateCard(profiles,rows){
   const from=iso(days[0]), to=iso(days[6]);
   const ags=profiles.filter(p=>p.role!=='admin');
@@ -620,25 +705,30 @@ function rateCard(profiles,rows){
   const sel=groups.some(g=>g.r===RATE_SEL)?RATE_SEL:null;
   const shown=sel===null?groups:groups.filter(g=>g.r===sel);
   const share=v=>totCA>0?Math.round(v/totCA*1000)/10:0;
-  const chips=`<button type="button" class="${sel===null?'on':''}" onclick="pickRate(null)">Tous les taux</button>`
-    +groups.map(g=>`<button type="button" class="${sel===g.r?'on':''}" onclick="pickRate(${g.r})">${g.r.toLocaleString('fr-FR')} % · ${g.n} agent${g.n>1?'s':''}</button>`).join('');
-  const cards=shown.map(g=>`<div class="card rc"><div class="rch"><span class="rate">${g.r.toLocaleString('fr-FR')} %</span>
+  const opts=`<option value="">Tous les taux</option>`+groups.map(g=>`<option value="${g.r}" ${sel===g.r?'selected':''}>${g.r.toLocaleString('fr-FR')} % — ${g.n} agent${g.n>1?'s':''}</option>`).join('');
+  const label=g=>g.r.toLocaleString('fr-FR')+' %';
+  const cards=shown.map(g=>`<div class="card rc"><div class="rch"><span class="rate">${label(g)}</span>
     <span class="hint" style="margin:0">${g.n} agent${g.n>1?'s':''} · ${share(g.ca).toLocaleString('fr-FR')} % du CA de la semaine</span></div>
     <i class="pg ok"><u style="width:${Math.max(share(g.ca),1)}%"></u></i>
     <div class="tiles" style="margin-bottom:12px">
       <div class="k"><span>Production (CA)</span><b>${fmt(g.ca)}</b></div>
       <div class="k"><span>Commission brute</span><b>${fmt(g.br)}</b></div>
       <div class="s"><span>Sanctions</span><b class="${g.sn>0?'down':''}">− ${fmt(g.sn)}</b></div>
-      <div class="k"><span>Commission nette ${g.r.toLocaleString('fr-FR')} %</span><b>${fmt(g.net)}</b><span>${fmt(g.net*AR_MULT)} Ar · ${fmt(g.net*CRYPTO_RATE)} USDT</span></div>
+      <div class="k"><span>Commission nette ${label(g)}</span><b>${fmt(g.net)}</b><span>${fmt(g.net*AR_MULT)} Ar · ${fmt(g.net*CRYPTO_RATE)} USDT</span></div>
     </div>
     <table data-fc="1"><tr><th>Agent</th><th>CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>
     ${g.list.map(d=>`<tr><td><a href="#" onclick="pick('${d.p.id}');return false">${esc(d.p.full_name||d.p.email)}</a></td>
       <td>${fmt(d.ca)}</td><td>${fmt(d.br)}</td><td class="${d.sn>0?'down':''}">${d.sn>0?'− ':''}${fmt(d.sn)}</td>
       <td><b>${fmt(d.net)}</b></td><td>${fmt(d.net*AR_MULT)}</td></tr>`).join('')}
-    <tfoot><tr><td>Total ${g.r.toLocaleString('fr-FR')} %</td><td>${fmt(g.ca)}</td><td>${fmt(g.br)}</td><td>${g.sn>0?'− ':''}${fmt(g.sn)}</td><td>${fmt(g.net)}</td><td>${fmt(g.net*AR_MULT)}</td></tr></tfoot></table></div>`).join('');
-  return `<div class="card"><h2>Production et commissions par taux</h2>
-  <p class="hint">Chaque taux est calculé séparément (les taux ne sont jamais additionnés entre eux). Choisissez un taux pour n'afficher que lui ; semaine affichée, commission nette = CA × taux − sanctions.</p>
-  <div class="nav" style="margin:0">${chips}</div></div>${cards}`;
+    <tfoot><tr><td>Total ${label(g)}</td><td>${fmt(g.ca)}</td><td>${fmt(g.br)}</td><td>${g.sn>0?'− ':''}${fmt(g.sn)}</td><td>${fmt(g.net)}</td><td>${fmt(g.net*AR_MULT)}</td></tr></tfoot></table></div>`).join('');
+  return `<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-end">
+    <div><h2 style="margin:0">Production et commissions par taux</h2>
+    <p class="hint" style="margin:4px 0 0">Chaque taux est calculé séparément (jamais additionné aux autres) · semaine affichée · commission nette = CA × taux − sanctions.</p></div>
+    <label class="mm" style="display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px">Taux à afficher<select class="sel" onchange="pickRate(this.value)" aria-label="Choisir un taux">${opts}</select></label></div></div>
+  <div class="g2">
+    <div class="card"><h2>CA par taux</h2><p class="hint">Part de chaque taux dans le CA de la semaine.</p>${donut(groups.map(g=>({l:label(g),v:g.ca})),'CA')}</div>
+    <div class="card"><h2>Commission nette par taux</h2><p class="hint">Montant net à verser pour chaque taux.</p>${hbars(groups.map(g=>({l:label(g),v:g.net,r:fmt(g.net)+' · '+fmt(g.net*AR_MULT)+' Ar'})),'Aucune commission cette semaine.')}</div>
+  </div>${cards}`;
 }
 
 // ---------- Tableau de bord général (admin) ----------
@@ -665,6 +755,12 @@ function dashCard(profiles,rows,hStart){
   const today=iso(new Date());
   const top=Object.values(models).sort((a,b)=>b.ca-a.ca).slice(0,6);
 
+  const pm=new Map(profiles.map(p=>[p.id,p]));
+  const commW=weeks.map(()=>0);
+  rows.forEach(r=>{ const i=wk(r.day,hStart), p=pm.get(r.user_id); if(p&&i>=0&&i<commW.length) commW[i]+=Number(r.ca||0)*Number(p.commission||0); });
+  const commItems=weeks.map((w,i)=>({l:w.d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'}),v:commW[i],t:'Semaine du '+w.d.toLocaleDateString('fr-FR')}));
+  const agS=ag.filter(a=>a.ca>0), dn=agS.slice(0,5).map(a=>({l:a.p.full_name||a.p.email,v:a.ca}));
+  const rest=agS.slice(5).reduce((s,a)=>s+a.ca,0); if(rest>0) dn.push({l:'Autres',v:rest});
   return `<div class="tiles">
     <div class="k"><span>Chiffre d'affaires</span><b>${fmt(tca)}</b><span class="${evoCls(evo)}">${evoTxt(evo)} vs semaine précédente</span></div>
     <div class="k"><span>Commissions à verser</span><b>${fmt(tco)}</b>${SAN_OK?'<span>après déduction des sanctions</span>':''}</div>
@@ -674,9 +770,13 @@ function dashCard(profiles,rows,hStart){
     <div class="k"><span>CA moyen par agent actif</span><b>${fmt(act?tca/act:0)}</b></div>
   </div>
   <div class="g2">
-    <div class="card"><h2>Chiffre d'affaires de l'équipe par semaine</h2><p class="hint">Évolution sur les ${STAT_WEEKS} dernières semaines, jusqu'à la semaine affichée.</p>${bars(weekItems(weeks),'CA de l\'équipe par semaine')}</div>
+    <div class="card"><h2>Chiffre d'affaires de l'équipe par semaine</h2><p class="hint">Évolution sur les ${STAT_WEEKS} dernières semaines, jusqu'à la semaine affichée.</p>${lineChart(weekItems(weeks),'CA de l\'équipe par semaine')}</div>
     <div class="card"><h2>Répartition par jour</h2><p class="hint">Total de tous les agents sur la semaine affichée.</p>
       ${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA de l\'équipe par jour')}</div>
+  </div>
+  <div class="g2">
+    <div class="card"><h2>Évolution des commissions brutes</h2><p class="hint">Courbe sur les ${STAT_WEEKS} dernières semaines (CA × taux de chaque agent, avant sanctions).</p>${lineChart(commItems,'Commissions brutes par semaine')}</div>
+    <div class="card"><h2>Répartition du CA par agent</h2><p class="hint">Semaine affichée : les 5 premiers agents puis « Autres ».</p>${donut(dn,'CA')}</div>
   </div>
   <div class="g2">
     <div class="card"><h2>Classement des agents</h2><p class="hint">Cliquez sur un agent pour ouvrir son tableau de bord.</p>
@@ -961,7 +1061,7 @@ async function show(){
       return `<tr><td>${esc(g.name)}</td>
         <td><input type="text" inputmode="decimal" style="width:100px" value="${gl}" onchange="setGoal('${g.id}',this.value)" aria-label="Objectif journalier"></td>
         <td>${fmt(td)}</td><td style="min-width:130px">${gl>0?pbar(td,gl):''}</td><td>${gl>0?dayBadge(o.day,td,gl):'—'}</td>
-        ${days.map(d=>{ const v=(o.wd[k]||{})[iso(d)]||0; return `<td${iso(d)===o.day?' style="background:rgba(31,111,92,.08)"':''}>${v?fmt(v):'<span style="color:var(--mute)">—</span>'}</td>`; }).join('')}
+        ${days.map(d=>{ const v=(o.wd[k]||{})[iso(d)]||0; return `<td${iso(d)===o.day?' style="background:color-mix(in srgb,var(--acc) 8%,transparent)"':''}>${v?fmt(v):'<span style="color:var(--mute)">—</span>'}</td>`; }).join('')}
         <td>${fmt(w)} / ${fmt(gl*7)}</td><td style="min-width:130px">${gl>0?pbar(w,gl*7):''}</td>
         <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
     }).join('');
@@ -1019,7 +1119,7 @@ async function show(){
 
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
-  <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
+  <div class="row"><div class="ctl"><button type="button" onclick="toggleDark(this)" title="Mode clair / sombre" aria-label="Mode clair ou sombre">${isDark()?'☀️':'🌙'}</button><select onchange="setAccent(this.value)" title="Couleur du thème" aria-label="Couleur du thème">${Object.entries(ACCENTS).map(([k,v])=>`<option value="${k}" ${UI.accent===k?'selected':''}>🎨 ${v}</option>`).join('')}</select></div><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
   ${nav}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}</div>`;
   animateNums(t+'|'+from+'|'+viewId);
   if(admin) applyFilter();
@@ -1113,7 +1213,7 @@ function perfView(profiles,rows,goals,vu,o){
 
   // 2) Évolution de chaque agent jour après jour, avec l'objectif de l'agence de chaque jour
   const dh=days.map(d=>`<th${iso(d)===today?' style="color:var(--acc)"':''}>${dayShort(d)}</th>`).join('');
-  const hl=d=>iso(d)===today?' style="background:rgba(31,111,92,.08)"':'';
+  const hl=d=>iso(d)===today?' style="background:color-mix(in srgb,var(--acc) 8%,transparent)"':'';
   const arows=people.map(a=>`<tr><td>${nameCell(a)}</td>
     ${days.map(d=>{ const v=(dayAg[a.id]||{})[iso(d)]; return `<td${hl(d)}>${v?fmt(v):dash0}</td>`; }).join('')}<td><b>${fmt(rowT[a.id]||0)}</b></td></tr>`).join('');
   const afoot=`<tfoot><tr><td>Total agence</td>${days.map(d=>`<td>${fmt(dayT[iso(d)]||0)}</td>`).join('')}<td>${fmt(grand)}</td></tr>
@@ -1157,7 +1257,7 @@ function statsCard(vu,rows,hStart){
     <div><span>Meilleure journée</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
     <div><span>Jours d'activité</span><b>${worked}</b></div>
     ${me.role==='admin'?`<div><span>Commission estimée${SAN_OK?' (nette)':''}</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>`:''}
-  </div>${bars(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
+  </div>${lineChart(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
 }
 
 // ---------- Versement des commissions : Mobile Money ou Crypto ----------
