@@ -132,6 +132,49 @@ th{text-transform:uppercase;letter-spacing:.04em;font-size:11px;position:sticky;
 .lg div{display:flex;align-items:center;gap:8px}.lg i{width:10px;height:10px;border-radius:3px;flex:none}
 .lg span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.lg b{font-variant-numeric:tabular-nums}
 .sel{min-width:200px;font-weight:600}
+
+/* ===== Style sobre et professionnel ===== */
+main{max-width:1360px}
+body{background:var(--bg);font-family:Inter,"Segoe UI",system-ui,-apple-system,Roboto,sans-serif;font-size:14.5px}
+header{margin:-16px -16px 18px;padding:10px 20px;box-shadow:0 1px 0 var(--line)}
+.logo{background:var(--acc);box-shadow:none;border-radius:8px;width:36px;height:36px;font-size:14px;letter-spacing:.04em}
+h1{font-size:18px;font-weight:650}h2{font-size:15px;font-weight:650}
+.card{border-radius:10px;box-shadow:0 1px 2px rgba(16,24,40,.05);animation:up .35s ease both}
+.card:hover{box-shadow:0 1px 2px rgba(16,24,40,.05)}
+button{border-radius:7px;font-weight:500}
+button:hover:not(:disabled){box-shadow:none;border-color:var(--acc);color:var(--acc)}
+button.p{background:var(--acc);border-color:var(--acc);box-shadow:none;color:#fff}
+button.p:hover:not(:disabled){filter:brightness(1.08);color:#fff;box-shadow:none}
+input,select{border-radius:7px}
+.tiles div{background:var(--card);border-radius:8px;transition:border-color .2s}
+.tiles div:hover{transform:none;box-shadow:none;border-color:color-mix(in srgb,var(--acc) 45%,var(--line))}
+.tiles .k{border-left-width:3px}.tiles .s{border-left-width:3px}
+.tiles span{font-size:12px}.tiles b{font-size:19px;font-weight:650}
+th{background:color-mix(in srgb,var(--bg) 55%,var(--card));font-size:11px;letter-spacing:.06em;position:static}
+table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
+.bd{border-radius:6px;font-weight:600;font-size:11.5px}
+.rc{border-left:3px solid var(--acc)}
+.rate{background:none;-webkit-background-clip:initial;background-clip:initial;color:var(--acc);font-size:22px;font-weight:700}
+/* Menu latéral par rubriques */
+.shell{display:grid;grid-template-columns:230px minmax(0,1fr);gap:22px;align-items:start}
+.side{position:sticky;top:76px;background:var(--card);border:1px solid var(--line);border-radius:10px;padding:8px}
+.side h4{margin:14px 10px 4px;font-size:10.5px;text-transform:uppercase;letter-spacing:.09em;color:var(--mute);font-weight:650}
+.side h4:first-child{margin-top:6px}
+.side button{display:block;width:100%;text-align:left;border:0;border-left:3px solid transparent;background:transparent;border-radius:6px;padding:8px 10px;color:var(--ink);font-weight:500}
+.side button:hover:not(:disabled){background:color-mix(in srgb,var(--acc) 8%,transparent);color:var(--ink);border-color:transparent}
+.side button.on{background:color-mix(in srgb,var(--acc) 11%,transparent);border-left-color:var(--acc);color:var(--acc);font-weight:650}
+.nav{position:static;padding:0}
+.nav button{border-radius:7px;padding:6px 12px}
+.nav button.on{background:var(--acc);border-color:var(--acc);box-shadow:none}
+.pgh{display:flex;justify-content:space-between;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--line)}
+.pgh h2{font-size:21px;margin:0;letter-spacing:-.01em}.pgh p{margin:2px 0 0;color:var(--mute);font-size:13.5px}
+@media(max-width:900px){
+ .shell{grid-template-columns:1fr;gap:12px}
+ .side{position:static;display:flex;gap:4px;overflow-x:auto;padding:6px}
+ .side h4{display:none}
+ .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
+ .side button.on{border-bottom-color:var(--acc)}
+}
 </style>
 </head>
 <body>
@@ -153,7 +196,7 @@ function applyUI(){
   try{ localStorage.setItem('sr-ui',JSON.stringify(UI)); }catch(e){}
 }
 const isDark=()=>UI.mode==='dark'||(UI.mode==='auto'&&matchMedia('(prefers-color-scheme: dark)').matches);
-function toggleDark(b){ UI.mode=isDark()?'light':'dark'; applyUI(); b.textContent=isDark()?'☀️':'🌙'; }
+function toggleDark(b){ UI.mode=isDark()?'light':'dark'; applyUI(); b.textContent=isDark()?'Mode clair':'Mode sombre'; }
 function setAccent(v){ UI.accent=v; applyUI(); }
 applyUI();
 let recovering = /type=recovery/.test(location.hash);
@@ -170,7 +213,7 @@ const num = v => Number(String(v ?? '').replace(/[\s\u00a0\u202f]/g,'').replace(
 const pv = c => Math.round(Number(c||0)*1e6)/1e4;
 const pct = c => pv(c).toLocaleString('fr-FR') + ' %';
 const rateOpts = v => {
-  const l = [...Array(20)].map((_,i)=>i+1);
+  const l = [...Array(20)].map((_,i)=>i+1).filter(n=>n!==7); // pas de taux à 7 %
   if(v!=null && !l.includes(v)) l.push(v);
   return l.sort((a,b)=>a-b).map(n=>`<option value="${n}" ${n===v?'selected':''}>${n.toLocaleString('fr-FR')} %</option>`).join('');
 };
@@ -287,7 +330,7 @@ const lineHtml = (m={}) => `<div class="ln${HAS_DETAIL?'':' nd'}">
   <select class="m" aria-label="Modèle" onchange="calc()">${modelOpts(m.model_name)}</select>
   <input class="c" inputmode="decimal" placeholder="CA" aria-label="Chiffre d'affaires" value="${m.ca ?? ''}" oninput="calc()">
   ${HAS_DETAIL?`<input class="d" maxlength="200" placeholder="Détail (facultatif)" aria-label="Détail" value="${esc(m.detail)}">`:''}
-  <button type="button" onclick="delLine(this)" aria-label="Supprimer la ligne" title="Supprimer">✕</button></div>`;
+  <button type="button" onclick="delLine(this)" aria-label="Supprimer la ligne" title="Supprimer">×</button></div>`;
 
 function addLine(k){
   const box=$('ln_'+k);
@@ -334,18 +377,18 @@ const ACTIVE_DAYS = 7; // un agent est « Actif » s'il a saisi son CA durant le
 function badge(last){
   const age = last ? Math.floor((new Date(iso(new Date())+'T00:00:00') - new Date(last+'T00:00:00'))/864e5) : null;
   const on = age !== null && age <= ACTIVE_DAYS;
-  return `<span class="bd${on?'':' off'}">${on?'● Actif':'● Inactif'}</span><small>${last?'Dernière saisie : '+new Date(last+'T00:00:00').toLocaleDateString('fr-FR'):'Aucune saisie'}</small>`;
+  return `<span class="bd${on?'':' off'}">${on?'Actif':'Inactif'}</span><small>${last?'Dernière saisie : '+new Date(last+'T00:00:00').toLocaleDateString('fr-FR'):'Aucune saisie'}</small>`;
 }
 function copyTxt(b){
   const o=b.textContent;
-  (navigator.clipboard?navigator.clipboard.writeText(b.dataset.t):Promise.reject()).then(()=>{ b.textContent='Copié ✓'; setTimeout(()=>b.textContent=o,1500); }).catch(()=>{});
+  (navigator.clipboard?navigator.clipboard.writeText(b.dataset.t):Promise.reject()).then(()=>{ b.textContent='Copié'; setTimeout(()=>b.textContent=o,1500); }).catch(()=>{});
 }
 async function resetPw(b){
   const em=b.dataset.t;
   if(!confirm('Envoyer un lien de réinitialisation du mot de passe à '+em+' ?')) return;
   const {error}=await sb.auth.resetPasswordForEmail(em,{redirectTo:location.origin+location.pathname});
   if(!error) await sb.from('agent_credentials').delete().eq('user_id',b.dataset.u);
-  b.textContent=error?'Échec : '+error.message:'Lien envoyé ✓';
+  b.textContent=error?'Échec : '+error.message:'Lien envoyé';
 }
 async function noteCred(b){
   const uid=b.dataset.u, pw=$('cr_'+uid).value.trim();
@@ -374,7 +417,7 @@ sb.auth.onAuthStateChange(ev=>{ if(ev==='PASSWORD_RECOVERY') recoveryView(); });
 
 let lastRefresh = new Date();
 const pbar = (v,g) => `<i class="pg${g>0&&v>=g?' ok':''}"><u style="width:${g>0?Math.min(100,v/g*100):0}%"></u></i>`;
-const stBadge = (v,g) => g>0&&v>=g ? '<span class="bd">✔ Atteint</span>' : `<span class="bd warn">En cours · reste ${fmt(Math.max(g-v,0))}</span>`;
+const stBadge = (v,g) => g>0&&v>=g ? '<span class="bd">Atteint</span>' : `<span class="bd warn">En cours · reste ${fmt(Math.max(g-v,0))}</span>`;
 const mkey = n => String(n).trim().toLocaleLowerCase('fr');
 // Objectifs de l'agence fixés jour par jour (table agency_goals : day, amount)
 let agMap={}, agOk=true;
@@ -398,7 +441,7 @@ function catchUp(o){
   const today=iso(new Date());
   const done=days.filter(d=>iso(d)<today).length, rem=days.filter(d=>iso(d)>=today).length;
   const gap=o.doneGoal-o.doneCA, left=Math.max(o.weekGoal-o.wTot,0), need=rem>0?left/rem:null, late=gap>0;
-  const msg = left===0 ? '✔ L\'objectif hebdomadaire de l\'agence est atteint.'
+  const msg = left===0 ? 'L\'objectif hebdomadaire de l\'agence est atteint.'
     : rem===0 ? `Semaine terminée : ${fmt(left)} d'objectif n'ont pas été réalisés.`
     : `Pour atteindre l'objectif de la semaine, il faut réaliser ${fmt(left)} sur les ${rem} jour${rem>1?'s':''} restant${rem>1?'s':''}, soit ${fmt(need)} par jour (aujourd'hui inclus).`;
   return `<div class="card"><h2>Rattrapage de la semaine</h2>
@@ -423,7 +466,7 @@ function objTiles(o){
 function dayBadge(k,v,g){
   if(!(g>0)) return '—';
   const today=iso(new Date());
-  if(v>=g) return '<span class="bd">✔ Atteint</span>';
+  if(v>=g) return '<span class="bd">Atteint</span>';
   if(k>today) return '<span class="bd off">À venir</span>';
   if(k<today) return `<span class="bd warn">Non atteint · manque ${fmt(g-v)}</span>`;
   return stBadge(v,g);
@@ -488,7 +531,7 @@ function cuProgress(cu,ca){
   const amt=Number(cu.amount||0), left=Math.max(amt-ca,0), today=iso(new Date());
   const rem=cu.end_day?Math.max(Math.round((new Date(cu.end_day+'T00:00:00')-new Date(today+'T00:00:00'))/864e5)+1,0):null;
   const need=rem>0?left/rem:null;
-  const msg = left===0 ? '✔ L\'objectif à rattraper est atteint.'
+  const msg = left===0 ? 'L\'objectif à rattraper est atteint.'
     : cu.end_day && rem===0 ? `Date limite dépassée : ${fmt(left)} restent à rattraper.`
     : cu.end_day ? `Il reste ${fmt(left)} à rattraper en ${rem} jour${rem>1?'s':''}, soit ${fmt(need)} par jour (aujourd'hui inclus).`
     : `Il reste ${fmt(left)} à rattraper.`;
@@ -803,7 +846,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
   <select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.filter(p=>p.role!=='admin').map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select></div>
   <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Paiement : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}${m.number?' · <b>À verser : '+payAmt(m,co)+'</b>':''}</p></div>
-  <div class="card"><div class="row"><input id="ag_q" type="search" placeholder="🔍 Trouver un agent (nom ou email)…" aria-label="Rechercher un agent" value="${esc(AGQ)}" oninput="filterAgents(this.value)" onkeydown="if(event.key==='Enter')pickFirstAgent()" style="flex:1;min-width:220px;max-width:420px"><span id="ag_c" class="hint" style="margin:0"></span></div>
+  <div class="card"><div class="row"><input id="ag_q" type="search" placeholder="Trouver un agent (nom ou email)…" aria-label="Rechercher un agent" value="${esc(AGQ)}" oninput="filterAgents(this.value)" onkeydown="if(event.key==='Enter')pickFirstAgent()" style="flex:1;min-width:220px;max-width:420px"><span id="ag_c" class="hint" style="margin:0"></span></div>
   <div class="nav" id="ag_list" style="margin:10px 0 0">${profiles.filter(p=>p.role!=='admin').sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr')).map(p=>`<button type="button" class="${p.id===vu.id?'on':''}" data-id="${p.id}" data-n="${esc(nrm((p.full_name||'')+' '+(p.email||'')))}" onclick="pick('${p.id}')">${esc(p.full_name||p.email)}</button>`).join('')}</div></div>
   <div class="tiles">
     <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
@@ -874,7 +917,7 @@ function sanAdminView(profiles,rows){
   const list=week.map(r=>`<tr><td>${dayShort(new Date(r.day+'T00:00:00'))}</td><td>${esc(nameOf(r.user_id))}</td>
     <td style="white-space:normal">${r.reason?esc(r.reason):'<span style="color:var(--mute)">—</span>'}</td>
     <td class="down"><b>${fmt(r.amount)}</b></td><td>${fmt(r.amount*AR_MULT)}</td>
-    <td><button type="button" data-id="${r.id}" onclick="delSanction(this)" aria-label="Supprimer la sanction" title="Supprimer">✕</button></td></tr>`).join('');
+    <td><button type="button" data-id="${r.id}" onclick="delSanction(this)" aria-label="Supprimer la sanction" title="Supprimer">×</button></td></tr>`).join('');
   const html=`<div class="card mm"><h2>Ajouter une sanction</h2>
   <p class="hint">Définissez le montant de la sanction d'un agent à une date donnée. Le montant est exprimé dans la même unité que la commission et il est déduit de la commission de l'agent (la commission nette ne descend jamais en dessous de 0). L'agent voit le total de ses sanctions par date dans son espace.</p>
   <div class="row" style="align-items:flex-end">
@@ -1013,9 +1056,10 @@ async function show(){
     const c=await sb.from('agent_credentials').select('user_id,password');
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
-  let dash='', team='', access='', perf='', sanTab='';
+  let dash='', team='', access='', perf='', sanTab='', comm='';
   if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu,objData(goals||[],rows,tr,objD));
-  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart)+rateCard(profiles,rows);
+  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
+  if(admin && t==='comm') comm=rateCard(profiles,rows);
   if(admin && t==='sanctions') sanTab=sanAdminView(profiles,rows);
 
   let agent='';
@@ -1063,7 +1107,7 @@ async function show(){
         <td>${fmt(td)}</td><td style="min-width:130px">${gl>0?pbar(td,gl):''}</td><td>${gl>0?dayBadge(o.day,td,gl):'—'}</td>
         ${days.map(d=>{ const v=(o.wd[k]||{})[iso(d)]||0; return `<td${iso(d)===o.day?' style="background:color-mix(in srgb,var(--acc) 8%,transparent)"':''}>${v?fmt(v):'<span style="color:var(--mute)">—</span>'}</td>`; }).join('')}
         <td>${fmt(w)} / ${fmt(gl*7)}</td><td style="min-width:130px">${gl>0?pbar(w,gl*7):''}</td>
-        <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">✕</button></td></tr>`;
+        <td><button type="button" data-id="${g.id}" data-n="${esc(g.name)}" onclick="delModel(this)" aria-label="Retirer le modèle" title="Retirer">×</button></td></tr>`;
     }).join('');
     // saisies dont le nom n'est plus dans la liste des modèles : on les garde pour que les totaux restent exacts
     const listed=new Set((goals||[]).map(g=>mkey(g.name)));
@@ -1080,9 +1124,9 @@ async function show(){
       : `${(o.dayGoal||o.weekGoal)?objTiles(o):''}
     <div class="card"><h2>Suivi des objectifs par modèle</h2>
     <div class="row" style="margin-bottom:10px">
-      <button onclick="shiftObjDay(-1)" aria-label="Jour précédent">◀</button>
+      <button onclick="shiftObjDay(-1)" aria-label="Jour précédent">‹</button>
       <input type="date" value="${o.day}" onchange="pickObjDay(this.value)" aria-label="Date du suivi">
-      <button onclick="shiftObjDay(1)" aria-label="Jour suivant">▶</button>
+      <button onclick="shiftObjDay(1)" aria-label="Jour suivant">›</button>
       <button onclick="pickObjDay('')" ${o.isToday?'disabled':''}>Aujourd'hui</button>
       <span style="color:var(--mute)">Suivi ${o.isToday?"d'aujourd'hui":'du'} <b style="text-transform:capitalize">${dayName(new Date(o.day+'T00:00:00'))}</b></span></div>
     <p class="hint">Choisissez une date : les colonnes du jour (objectif, CA, progression, statut) se mettent à jour. La semaine complète (lundi à dimanche) reste toujours affichée à droite, avec la date choisie surlignée ; la semaine suit cette date. Les objectifs par modèle servent de repère et de valeur par défaut pour l'agence quand aucun objectif n'a été fixé pour un jour.</p>
@@ -1090,20 +1134,32 @@ async function show(){
     <tfoot><tr><td>Total agence</td><td>${fmt(o.dayGoal)}</td><td>${fmt(o.tTot)}</td><td style="min-width:130px">${pbar(o.tTot,o.dayGoal)}</td><td>${o.dayGoal?dayBadge(o.day,o.tTot,o.dayGoal):'—'}</td>${days.map(d=>`<td>${fmt(o.dayCA[iso(d)]||0)}</td>`).join('')}<td>${fmt(o.wTot)} / ${fmt(o.weekGoal)}</td><td style="min-width:130px">${pbar(o.wTot,o.weekGoal)}</td><td></td></tr></tfoot></table>`:'<p class="hint">Aucun modèle pour le moment. Ajoutez-en un ci-dessus.</p>'}</div>`;
   }
 
-  const nav=admin?`<div class="nav">${[['dash','📊 Tableau de bord'],['agent','👤 Agents'],['goals','🎯 Objectifs'],['perf','📈 CA par modèle'],['sanctions','⚠️ Sanctions'],['team','👥 Équipe'],['access','🔑 Accès']]
-    .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>
-  <div class="row" style="margin-bottom:14px"><input id="gq" type="search" placeholder="🔍 Rechercher un agent ou un modèle…" aria-label="Recherche rapide" value="${esc(SEARCH)}" oninput="setSearch(this.value)" style="flex:1;min-width:220px;max-width:420px"><span id="gqc" class="hint" style="margin:0"></span></div>`:'';
+  const NAV=[['Pilotage',[['dash','Tableau de bord'],['goals','Objectifs'],['perf','CA par modèle']]],
+    ['Équipe',[['agent','Fiches agents'],['team','Gestion de l\'équipe']]],
+    ['Rémunération',[['comm','Commissions par taux'],['sanctions','Sanctions']]],
+    ['Administration',[['access','Accès et identifiants']]]];
+  const PAGES={dash:['Tableau de bord','Synthèse de l\'activité, des objectifs et des commissions de la semaine.'],
+    goals:['Objectifs','Objectifs de l\'agence, suivi par modèle et rattrapage.'],
+    perf:['CA par modèle','Production de chaque agent, par modèle et par jour.'],
+    agent:['Fiches agents','Performance, sanctions et paiement d\'un agent.'],
+    team:['Gestion de l\'équipe','Agents, taux de commission, rôles et modes de paiement.'],
+    comm:['Commissions par taux','Production et commissions de chaque taux, calculés séparément.'],
+    sanctions:['Sanctions','Saisie des sanctions et récapitulatif des commissions nettes.'],
+    access:['Accès et identifiants','Identifiants de connexion et réinitialisation des mots de passe.']};
+  const pg=PAGES[t]||['',''];
+  const side=admin?`<aside class="side" aria-label="Navigation">${NAV.map(([h,l])=>`<h4>${h}</h4>`+l.map(([k,n])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${n}</button>`).join('')).join('')}</aside>`:'';
+  const head=admin?`<div class="pgh"><div><h2>${pg[0]}</h2><p>${pg[1]}</p></div><div class="row"><input id="gq" type="search" placeholder="Rechercher un agent ou un modèle" aria-label="Recherche rapide" value="${esc(SEARCH)}" oninput="setSearch(this.value)" style="min-width:240px"><span id="gqc" class="hint" style="margin:0"></span></div></div>`:'';
 
   const weekBar=(t==='access')?'':`<div class="card"><div class="row">
-    <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
+    <button onclick="shift(-1)" aria-label="Semaine précédente">‹</button>
     <input type="date" value="${from}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
-    <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
+    <button onclick="shift(1)" aria-label="Semaine suivante">›</button>
     <span style="color:var(--mute)">Semaine du ${days[0].toLocaleDateString('fr-FR')} au ${days[6].toLocaleDateString('fr-FR')}</span></div></div>`;
 
   const first=esc((vu.full_name||vu.email||'').split(/[ @]/)[0]);
   const report=(admin||t!=='reports')?'':`<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
   </div>
-  <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> 👋 Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
+  <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
   <p class="hint">Pour chaque jour, ajoutez une ligne par modèle : choisissez le modèle dans la liste, puis indiquez le chiffre d'affaires et un détail éventuel. Les totaux se calculent automatiquement. Laissez un jour vide en l'absence d'activité.</p>
   ${MODEL_NAMES.length?'':'<p class="msg">Aucun modèle disponible pour le moment : demandez à l\'administrateur d\'en ajouter dans l\'onglet Objectifs.</p>'}
   <div class="lh${HAS_DETAIL?'':' nd'}"><span>Modèle</span><span>Chiffre d'affaires</span>${HAS_DETAIL?'<span>Détail</span>':''}<span></span></div>
@@ -1111,7 +1167,7 @@ async function show(){
     const k=iso(d), r=mine[k]||{models:[]};
     return `<div class="day"><div class="dh"><span>${dayName(d)}</span><span>CA du jour : <b id="dayca_${k}">0</b></span></div>
       <div id="ln_${k}">${r.models.map(lineHtml).join('')}</div>
-      <button type="button" onclick="addLine('${k}')">＋ Ajouter un modèle</button></div>`;
+      <button type="button" onclick="addLine('${k}')">+ Ajouter un modèle</button></div>`;
   }).join('')}
   <div class="tot"><div><span>CA total de la semaine</span><b id="tca">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
@@ -1119,8 +1175,8 @@ async function show(){
 
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
-  <div class="row"><div class="ctl"><button type="button" onclick="toggleDark(this)" title="Mode clair / sombre" aria-label="Mode clair ou sombre">${isDark()?'☀️':'🌙'}</button><select onchange="setAccent(this.value)" title="Couleur du thème" aria-label="Couleur du thème">${Object.entries(ACCENTS).map(([k,v])=>`<option value="${k}" ${UI.accent===k?'selected':''}>🎨 ${v}</option>`).join('')}</select></div><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${nav}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}</div>`;
+  <div class="row"><div class="ctl"><button type="button" onclick="toggleDark(this)" title="Mode clair / sombre" aria-label="Mode clair ou sombre">${isDark()?'Mode clair':'Mode sombre'}</button><select onchange="setAccent(this.value)" title="Couleur du thème" aria-label="Couleur du thème">${Object.entries(ACCENTS).map(([k,v])=>`<option value="${k}" ${UI.accent===k?'selected':''}>${v}</option>`).join('')}</select></div><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
+  ${admin?`<div class="shell">${side}<div class="content">${head}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${comm}${sanTab}${team}${access}</div></div></div>`:`<div id="adm">${weekBar}${report}</div>`}`;
   animateNums(t+'|'+from+'|'+viewId);
   if(admin) applyFilter();
   if(admin && $('ag_list')) filterAgents(AGQ);
