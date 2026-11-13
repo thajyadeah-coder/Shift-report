@@ -68,6 +68,7 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 const SUPABASE_URL = 'https://gnhvvhjnfsetopbekqcp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
 const AR_MULT = 3900;
+const CRYPTO_RATE = 1; // 1 unité de commission = 1 USDT (à adapter si besoin)
 // =========================
 let recovering = /type=recovery/.test(location.hash);
 const sb = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
@@ -90,7 +91,8 @@ const rateOpts = v => {
 const dayName = d => d.toLocaleDateString('fr-FR',{weekday:'long',day:'2-digit',month:'2-digit'});
 const dayShort = d => d.toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
 const STAT_WEEKS = 8;
-const MM_OPS = ['MVola','Orange Money','Airtel Money'];
+const MM_OPS = ['MVola','Orange Money','Airtel Money','Crypto · USDT (TRC20)','Crypto · USDT (BEP20)','Crypto · Bitcoin (BTC)'];
+const isCrypto = op => /^Crypto/.test(op||'');
 let HAS_DETAIL = true; // passe à false si la colonne « detail » n'existe pas encore dans Supabase
 const wk = (day,h) => Math.floor((new Date(day+'T00:00:00')-h+36e5)/(7*864e5));
 const evoOf = (c,p) => p>0 ? Math.round((c-p)/p*100) : null;
@@ -164,12 +166,16 @@ async function mmApi(method, q, body){
     return uid ? mmRow(data[0]) || null : data.map(mmRow);
   }
   const {data:{session}} = await sb.auth.getSession();
-  const number = String(body.number||'').trim().slice(0,30);
-  if(number && !/^\+?[0-9 ]{6,20}$/.test(number))
+  const operator = String(body.operator||'').trim().slice(0,40);
+  const number = String(body.number||'').trim().slice(0,100);
+  if(isCrypto(operator)){
+    if(number && !/^[A-Za-z0-9]{15,100}$/.test(number))
+      throw new Error('Adresse crypto invalide : lettres et chiffres uniquement, sans espaces.');
+  }else if(number && !/^\+?[0-9 ]{6,20}$/.test(number))
     throw new Error('Numéro invalide : chiffres uniquement, le signe + est autorisé.');
   const row = {
     user_id:body.user_id || session?.user?.id,
-    operator:String(body.operator||'').trim().slice(0,40),
+    operator,
     number,
     holder:String(body.holder||'').trim().slice(0,80),
     updated_at:new Date().toISOString()
@@ -597,7 +603,7 @@ function dashCard(profiles,rows,hStart){
   </div>`;
 }
 
-function agentView(vu,profiles,hist,hStart,mm,lastBy){
+function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
   const from=iso(days[0]),to=iso(days[6]),today=iso(new Date());
   const dayT={},models={};
   hist.forEach(r=>{
@@ -613,7 +619,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy){
   const m=mm||{};
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
   <select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.filter(p=>p.role!=='admin').map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select></div>
-  <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Mobile Money : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}</p></div>
+  <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Paiement : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}${m.number?' · <b>À verser : '+payAmt(m,co)+'</b>':''}</p></div>
   <div class="card"><div class="row"><input id="ag_q" type="search" placeholder="🔍 Trouver un agent (nom ou email)…" aria-label="Rechercher un agent" value="${esc(AGQ)}" oninput="filterAgents(this.value)" onkeydown="if(event.key==='Enter')pickFirstAgent()" style="flex:1;min-width:220px;max-width:420px"><span id="ag_c" class="hint" style="margin:0"></span></div>
   <div class="nav" id="ag_list" style="margin:10px 0 0">${profiles.filter(p=>p.role!=='admin').sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr')).map(p=>`<button type="button" class="${p.id===vu.id?'on':''}" data-id="${p.id}" data-n="${esc(nrm((p.full_name||'')+' '+(p.email||'')))}" onclick="pick('${p.id}')">${esc(p.full_name||p.email)}</button>`).join('')}</div></div>
   <div class="tiles">
@@ -725,6 +731,9 @@ async function delSanction(b){
   show();
 }
 
+// Montant à verser selon le mode de paiement : USDT pour la crypto, Ariary pour le Mobile Money
+const payAmt = (m,net) => m && isCrypto(m.operator) ? fmt(net*CRYPTO_RATE)+' USDT' : fmt(net*AR_MULT)+' Ar';
+
 async function show(){
   if(recovering) return;
   days = [...Array(7)].map((_,i)=>{
@@ -796,6 +805,7 @@ async function show(){
   const vu=profiles.find(p=>p.id===viewId)||me;
   const hist=rows.filter(r=>r.user_id===vu.id);
   const caW=hist.reduce((s,r)=>r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); // CA de la semaine affichée pour l'agent consulté
+  const netW=netCo(caW*vu.commission,sanSum(vu.id,from,to)); // commission nette de la semaine = montant à verser
 
   const [mmAll,mmOne]=await Promise.all([
     admin ? mmApi('GET').catch(()=>[]) : Promise.resolve([]),
@@ -826,14 +836,17 @@ async function show(){
   if(admin && t==='sanctions') sanTab=sanAdminView(profiles,rows);
 
   let agent='';
-  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy)+sanCard(vu,caW,false)+statsCard(vu,hist,hStart);
+  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy,netW)+sanCard(vu,caW,false)+statsCard(vu,hist,hStart);
 
   if(admin && t==='team'){
-    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Mobile Money</th><th>Taux de commission</th><th>Rôle</th></tr>
+    // commission nette de la semaine affichée, par agent (pour le montant à verser)
+    const netOf=p=>{ const ca=rows.reduce((s,r)=>r.user_id===p.id&&r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); return netCo(ca*p.commission,sanSum(p.id,from,to)); };
+    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Le montant à verser est la commission nette de la semaine affichée, dans la monnaie du mode de paiement choisi (Ariary pour Mobile Money, USDT pour la crypto). Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Paiement</th><th>À verser (semaine)</th><th>Taux de commission</th><th>Rôle</th></tr>
     ${profiles.map(p=>{
       const m=mmBy[p.id];
       return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||'(sans nom)')}</a></td><td>${esc(p.email)}</td><td>${badge(lastBy[p.id])}</td>
-      <td>${m&&m.number?esc(m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
+      <td>${m&&m.number?(isCrypto(m.operator)?'<span class="bd">Crypto</span> ':'')+esc(m.number.length>22?m.number.slice(0,10)+'…'+m.number.slice(-6):m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
+      <td><b>${m&&m.number?payAmt(m,netOf(p)):'—'}</b></td>
       <td><select onchange="upd('${p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(p.commission))}</select></td>
       <td><select ${p.id===me.id?'disabled title="Vous ne pouvez pas modifier votre propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
       <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`;
@@ -898,7 +911,7 @@ async function show(){
     .map(([k,l])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${l}</button>`).join('')}</div>
   <div class="row" style="margin-bottom:14px"><input id="gq" type="search" placeholder="🔍 Rechercher un agent ou un modèle…" aria-label="Recherche rapide" value="${esc(SEARCH)}" oninput="setSearch(this.value)" style="flex:1;min-width:220px;max-width:420px"><span id="gqc" class="hint" style="margin:0"></span></div>`:'';
 
-  const weekBar=(t==='team'||t==='access')?'':`<div class="card"><div class="row">
+  const weekBar=(t==='access')?'':`<div class="card"><div class="row">
     <button onclick="shift(-1)" aria-label="Semaine précédente">◀</button>
     <input type="date" value="${from}" onchange="pickWeek(this.value)" aria-label="Choisir une semaine">
     <button onclick="shift(1)" aria-label="Semaine suivante">▶</button>
@@ -919,7 +932,7 @@ async function show(){
   }).join('')}
   <div class="tot"><div><span>CA total de la semaine</span><b id="tca">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
-  ${sanCard(vu,caW,true)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne)}`;
+  ${sanCard(vu,caW,true)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne,netW)}`;
 
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
@@ -1043,15 +1056,21 @@ function statsCard(vu,rows,hStart){
   </div>${bars(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
 }
 
-function mmCard(vu,m){
-  m=m||{};
+// ---------- Versement des commissions : Mobile Money ou Crypto ----------
+function mmCard(vu,m,net){
+  m=m||{}; net=net||0;
   const ops=MM_OPS.includes(m.operator)||!m.operator?MM_OPS:[...MM_OPS,m.operator];
-  return `<div class="card mm"><h2>Versement des commissions (Mobile Money)</h2>
-  <p class="hint">Numéro sur lequel la commission doit être versée.</p>
+  const cr=isCrypto(m.operator);
+  return `<div class="card mm"><h2>Versement des commissions (Mobile Money / Crypto)</h2>
+  <p class="hint">Choisissez comment recevoir votre commission : Mobile Money (numéro) ou Crypto (adresse de portefeuille). Pour la crypto, vérifiez bien le réseau et l'adresse : un envoi à une mauvaise adresse est irréversible.</p>
+  <div class="tiles" style="margin-bottom:10px">
+    <div class="k"><span>Commission nette de la semaine</span><b>${fmt(net)}</b></div>
+    <div class="k"><span>Montant à recevoir${m.operator?' · '+esc(m.operator):''}</span><b>${m.number?payAmt(m,net):'—'}</b><span>${m.number?(cr?'1 unité de commission = '+CRYPTO_RATE+' USDT':'1 unité de commission = '+fmt(AR_MULT)+' Ar'):'Renseignez un mode de paiement'}</span></div>
+  </div>
   <div class="row" style="align-items:flex-end">
-    <label>Opérateur<select id="mm_op"><option value="">— Choisir —</option>${ops.map(o=>`<option ${o===m.operator?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
-    <label>Numéro<input id="mm_nb" type="tel" inputmode="tel" placeholder="034 00 000 00" value="${esc(m.number||'')}"></label>
-    <label>Titulaire du compte<input id="mm_ho" placeholder="Nom figurant sur le compte" value="${esc(m.holder||'')}"></label>
+    <label>Mode de paiement<select id="mm_op"><option value="">— Choisir —</option>${ops.map(o=>`<option ${o===m.operator?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
+    <label>Numéro ou adresse crypto<input id="mm_nb" type="text" placeholder="034 00 000 00 ou adresse du portefeuille" value="${esc(m.number||'')}" style="min-width:260px"></label>
+    <label>Titulaire du compte (facultatif en crypto)<input id="mm_ho" placeholder="Nom figurant sur le compte" value="${esc(m.holder||'')}"></label>
     <button class="p" onclick="saveMM('${vu.id}')">Enregistrer</button></div>
   <div id="mm_msg"></div></div>`;
 }
@@ -1060,7 +1079,8 @@ async function saveMM(uid){
   const el=$('mm_msg');
   try{
     await mmApi('PUT','',{user_id:uid,operator:$('mm_op').value,number:$('mm_nb').value,holder:$('mm_ho').value});
-    el.className='ok'; el.textContent='Coordonnées Mobile Money enregistrées.';
+    el.className='ok'; el.textContent='Mode de paiement enregistré.';
+    show();
   }catch(e){
     el.className='msg'; el.textContent='Erreur : '+e.message;
   }
