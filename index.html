@@ -558,6 +558,56 @@ const weekItems = weeks => weeks.map((w,i)=>({
   t:'Semaine du '+w.d.toLocaleDateString('fr-FR')
 }));
 
+// ---------- Analyse par taux de commission (admin) : sélection d'un ou plusieurs taux ----------
+let RATE_SEL = [];
+function toggleRate(r){ const i=RATE_SEL.indexOf(r); if(i>=0) RATE_SEL.splice(i,1); else RATE_SEL.push(r); show(); }
+function clearRate(){ RATE_SEL=[]; show(); }
+function rateCard(profiles,rows){
+  const from=iso(days[0]), to=iso(days[6]);
+  const ags=profiles.filter(p=>p.role!=='admin');
+  if(!ags.length) return '';
+  const caBy={};
+  rows.forEach(r=>{ if(r.day>=from&&r.day<=to) caBy[r.user_id]=(caBy[r.user_id]||0)+Number(r.ca||0); });
+  const data=ags.map(p=>{
+    const ca=caBy[p.id]||0, br=ca*p.commission, sn=sanSum(p.id,from,to);
+    return {p,rate:pv(p.commission),ca,br,sn,net:netCo(br,sn)};
+  });
+  const rates=[...new Set(data.map(d=>d.rate))].sort((a,b)=>b-a);
+  const sel=RATE_SEL.filter(r=>rates.includes(r));
+  const sum=(a,k)=>a.reduce((s,x)=>s+x[k],0);
+  const f=sel.length?data.filter(d=>sel.includes(d.rate)):data;
+  const totCA=sum(data,'ca');
+  const groups=rates.map(r=>{ const g=data.filter(d=>d.rate===r);
+    return {r,n:g.length,ca:sum(g,'ca'),br:sum(g,'br'),sn:sum(g,'sn'),net:sum(g,'net')}; });
+  const share=v=>totCA>0?Math.round(v/totCA*1000)/10+' %':'—';
+  const label=sel.length?sel.map(r=>r.toLocaleString('fr-FR')+' %').join(' + '):'tous les taux';
+  const chips=`<button type="button" class="${sel.length?'':'on'}" onclick="clearRate()">Tous les taux</button>`
+    +groups.map(g=>`<button type="button" class="${sel.includes(g.r)?'on':''}" onclick="toggleRate(${g.r})">${g.r.toLocaleString('fr-FR')} % · ${g.n} agent${g.n>1?'s':''}</button>`).join('');
+  const sFC=sum(f,'ca'), sBr=sum(f,'br'), sSn=sum(f,'sn'), sNet=sum(f,'net');
+  const grows=groups.map(g=>`<tr${sel.includes(g.r)?' style="background:rgba(31,111,92,.08)"':''}>
+    <td><b>${g.r.toLocaleString('fr-FR')} %</b></td><td>${g.n}</td><td>${fmt(g.ca)}</td><td>${share(g.ca)}</td><td>${fmt(g.br)}</td>
+    <td class="${g.sn>0?'down':''}">${g.sn>0?'− ':''}${fmt(g.sn)}</td><td><b>${fmt(g.net)}</b></td><td>${fmt(g.net*AR_MULT)}</td></tr>`).join('');
+  const arows=[...f].sort((a,b)=>b.ca-a.ca).map(d=>`<tr><td><a href="#" onclick="pick('${d.p.id}');return false">${esc(d.p.full_name||d.p.email)}</a></td>
+    <td>${d.rate.toLocaleString('fr-FR')} %</td><td>${fmt(d.ca)}</td><td>${fmt(d.br)}</td>
+    <td class="${d.sn>0?'down':''}">${d.sn>0?'− ':''}${fmt(d.sn)}</td><td><b>${fmt(d.net)}</b></td><td>${fmt(d.net*AR_MULT)}</td></tr>`).join('');
+  return `<div class="card"><h2>Production et commissions par taux</h2>
+  <p class="hint">Sélectionnez un ou plusieurs taux pour obtenir la somme de la production et des commissions des agents concernés, sur la semaine affichée (commission nette = CA × taux − sanctions).</p>
+  <div class="nav" style="margin-bottom:12px">${chips}</div>
+  <div class="tiles">
+    <div class="k"><span>Sélection</span><b style="font-size:16px">${esc(label)}</b><span>${f.length} agent${f.length>1?'s':''}</span></div>
+    <div class="k"><span>Production (CA)</span><b>${fmt(sFC)}</b><span>${share(sFC)} du CA total</span></div>
+    <div class="k"><span>Commission brute</span><b>${fmt(sBr)}</b></div>
+    <div class="s"><span>Sanctions</span><b class="${sSn>0?'down':''}">− ${fmt(sSn)}</b></div>
+    <div class="k"><span>Commission nette à verser</span><b>${fmt(sNet)}</b><span>${fmt(sNet*AR_MULT)} Ar · ${fmt(sNet*CRYPTO_RATE)} USDT</span></div>
+  </div>
+  <h2 style="margin-top:6px">Répartition par taux</h2>
+  <table data-nf><tr><th>Taux</th><th>Agents</th><th>Production (CA)</th><th>% du CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${grows}
+  <tfoot><tr><td>Total</td><td>${data.length}</td><td>${fmt(totCA)}</td><td>${totCA>0?'100 %':'—'}</td><td>${fmt(sum(data,'br'))}</td><td>${sum(data,'sn')>0?'− ':''}${fmt(sum(data,'sn'))}</td><td>${fmt(sum(data,'net'))}</td><td>${fmt(sum(data,'net')*AR_MULT)}</td></tr></tfoot></table>
+  <h2 style="margin-top:18px">Agents de la sélection (${esc(label)})</h2>
+  <table data-fc="2"><tr><th>Agent</th><th>Taux</th><th>CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${arows}
+  <tfoot><tr><td>Total sélection</td><td></td><td>${fmt(sFC)}</td><td>${fmt(sBr)}</td><td>${sSn>0?'− ':''}${fmt(sSn)}</td><td>${fmt(sNet)}</td><td>${fmt(sNet*AR_MULT)}</td></tr></tfoot></table></div>`;
+}
+
 // ---------- Tableau de bord général (admin) ----------
 function dashCard(profiles,rows,hStart){
   const from=iso(days[0]),to=iso(days[6]);
@@ -832,7 +882,7 @@ async function show(){
   }
   let dash='', team='', access='', perf='', sanTab='';
   if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu,objData(goals||[],rows,tr,objD));
-  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
+  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart)+rateCard(profiles,rows);
   if(admin && t==='sanctions') sanTab=sanAdminView(profiles,rows);
 
   let agent='';
