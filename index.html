@@ -58,6 +58,46 @@ td small{display:block;color:var(--mute);white-space:normal;max-width:240px}
 .mm label{display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px}
 @media(max-width:760px){.g2{grid-template-columns:1fr}.lh{display:none}
 .ln,.ln.nd{grid-template-columns:1fr 1fr 40px}.ln button{order:3}.ln .d{order:4;grid-column:1/-1}}
+
+/* ===== Habillage professionnel ===== */
+body{background:radial-gradient(1200px 500px at 85% -10%,rgba(31,111,92,.14),transparent 60%),radial-gradient(900px 400px at -10% 0%,rgba(111,211,185,.12),transparent 55%),var(--bg);background-attachment:fixed;-webkit-font-smoothing:antialiased}
+header{position:sticky;top:0;z-index:20;margin:-16px -16px 16px;padding:12px 16px;background:color-mix(in srgb,var(--card) 82%,transparent);backdrop-filter:blur(10px);-webkit-backdrop-filter:blur(10px);border-bottom:1px solid var(--line)}
+.logo{background:linear-gradient(135deg,var(--acc),var(--acc2));box-shadow:0 4px 12px rgba(31,111,92,.35);letter-spacing:.5px}
+h1{letter-spacing:-.01em}
+h2{letter-spacing:-.005em}
+.card{border-radius:16px;box-shadow:0 1px 2px rgba(16,24,40,.04),0 8px 24px -12px rgba(16,24,40,.12);transition:box-shadow .25s,transform .25s;animation:up .45s cubic-bezier(.2,.7,.2,1) both}
+.card:hover{box-shadow:0 2px 4px rgba(16,24,40,.05),0 16px 32px -14px rgba(16,24,40,.18)}
+@keyframes up{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:none}}
+button{transition:background .15s,transform .1s,box-shadow .15s,border-color .15s}
+button:hover:not(:disabled){border-color:var(--acc);box-shadow:0 2px 8px rgba(31,111,92,.15)}
+button:active:not(:disabled){transform:scale(.97)}
+button:disabled{opacity:.5;cursor:default}
+button.p{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;font-weight:600;box-shadow:0 4px 12px -4px rgba(31,111,92,.5)}
+button.p:hover:not(:disabled){filter:brightness(1.07);box-shadow:0 6px 16px -4px rgba(31,111,92,.55)}
+input:focus,select:focus{border-color:var(--acc);box-shadow:0 0 0 3px rgba(31,111,92,.18);outline:none}
+.nav{position:sticky;top:64px;z-index:10;padding:6px 0}
+.nav button{font-weight:500}
+.nav button.on{background:linear-gradient(135deg,var(--acc),var(--acc2));border-color:transparent;box-shadow:0 4px 12px -4px rgba(31,111,92,.55)}
+.tiles div{border-radius:12px;background:linear-gradient(180deg,var(--card),color-mix(in srgb,var(--bg) 40%,var(--card)));transition:transform .2s,box-shadow .2s}
+.tiles div:hover{transform:translateY(-2px);box-shadow:0 8px 18px -10px rgba(16,24,40,.25)}
+.tiles b{font-variant-numeric:tabular-nums;letter-spacing:-.01em}
+table{font-variant-numeric:tabular-nums}
+tbody tr,table tr{transition:background .15s}
+table tr:hover td{background:color-mix(in srgb,var(--acc) 6%,transparent)}
+th{text-transform:uppercase;letter-spacing:.04em;font-size:11px;position:sticky;top:0}
+.pg u,.hb i u{transition:width .8s cubic-bezier(.2,.7,.2,1);animation:grow .9s cubic-bezier(.2,.7,.2,1) both;transform-origin:left}
+@keyframes grow{from{transform:scaleX(0)}to{transform:scaleX(1)}}
+.chart .bar{transition:opacity .2s,transform .2s;transform-box:fill-box;transform-origin:bottom;animation:rise .7s cubic-bezier(.2,.7,.2,1) both}
+.chart .bar:hover{opacity:1}
+@keyframes rise{from{transform:scaleY(0)}to{transform:scaleY(1)}}
+.day{transition:border-color .2s,box-shadow .2s}.day:hover{border-color:var(--acc)}
+.bd{letter-spacing:.01em}
+.rc{border-left:5px solid var(--acc)}
+.rch{display:flex;align-items:center;gap:12px;flex-wrap:wrap;margin-bottom:6px}
+.rate{font-size:26px;font-weight:800;letter-spacing:-.02em;background:linear-gradient(135deg,var(--acc),var(--acc2));-webkit-background-clip:text;background-clip:text;color:transparent}
+::-webkit-scrollbar{height:8px;width:8px}::-webkit-scrollbar-thumb{background:var(--line);border-radius:8px}
+@media(max-width:760px){header{margin:-16px -16px 12px}.nav{top:60px}}
+@media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
 </style>
 </head>
 <body>
@@ -558,10 +598,9 @@ const weekItems = weeks => weeks.map((w,i)=>({
   t:'Semaine du '+w.d.toLocaleDateString('fr-FR')
 }));
 
-// ---------- Analyse par taux de commission (admin) : sélection d'un ou plusieurs taux ----------
-let RATE_SEL = [];
-function toggleRate(r){ const i=RATE_SEL.indexOf(r); if(i>=0) RATE_SEL.splice(i,1); else RATE_SEL.push(r); show(); }
-function clearRate(){ RATE_SEL=[]; show(); }
+// ---------- Analyse par taux de commission (admin) : une carte par taux, sans addition entre les taux ----------
+let RATE_SEL = null;
+function pickRate(r){ RATE_SEL = (r===RATE_SEL) ? null : r; show(); }
 function rateCard(profiles,rows){
   const from=iso(days[0]), to=iso(days[6]);
   const ags=profiles.filter(p=>p.role!=='admin');
@@ -572,40 +611,34 @@ function rateCard(profiles,rows){
     const ca=caBy[p.id]||0, br=ca*p.commission, sn=sanSum(p.id,from,to);
     return {p,rate:pv(p.commission),ca,br,sn,net:netCo(br,sn)};
   });
-  const rates=[...new Set(data.map(d=>d.rate))].sort((a,b)=>b-a);
-  const sel=RATE_SEL.filter(r=>rates.includes(r));
   const sum=(a,k)=>a.reduce((s,x)=>s+x[k],0);
-  const f=sel.length?data.filter(d=>sel.includes(d.rate)):data;
   const totCA=sum(data,'ca');
-  const groups=rates.map(r=>{ const g=data.filter(d=>d.rate===r);
-    return {r,n:g.length,ca:sum(g,'ca'),br:sum(g,'br'),sn:sum(g,'sn'),net:sum(g,'net')}; });
-  const share=v=>totCA>0?Math.round(v/totCA*1000)/10+' %':'—';
-  const label=sel.length?sel.map(r=>r.toLocaleString('fr-FR')+' %').join(' + '):'tous les taux';
-  const chips=`<button type="button" class="${sel.length?'':'on'}" onclick="clearRate()">Tous les taux</button>`
-    +groups.map(g=>`<button type="button" class="${sel.includes(g.r)?'on':''}" onclick="toggleRate(${g.r})">${g.r.toLocaleString('fr-FR')} % · ${g.n} agent${g.n>1?'s':''}</button>`).join('');
-  const sFC=sum(f,'ca'), sBr=sum(f,'br'), sSn=sum(f,'sn'), sNet=sum(f,'net');
-  const grows=groups.map(g=>`<tr${sel.includes(g.r)?' style="background:rgba(31,111,92,.08)"':''}>
-    <td><b>${g.r.toLocaleString('fr-FR')} %</b></td><td>${g.n}</td><td>${fmt(g.ca)}</td><td>${share(g.ca)}</td><td>${fmt(g.br)}</td>
-    <td class="${g.sn>0?'down':''}">${g.sn>0?'− ':''}${fmt(g.sn)}</td><td><b>${fmt(g.net)}</b></td><td>${fmt(g.net*AR_MULT)}</td></tr>`).join('');
-  const arows=[...f].sort((a,b)=>b.ca-a.ca).map(d=>`<tr><td><a href="#" onclick="pick('${d.p.id}');return false">${esc(d.p.full_name||d.p.email)}</a></td>
-    <td>${d.rate.toLocaleString('fr-FR')} %</td><td>${fmt(d.ca)}</td><td>${fmt(d.br)}</td>
-    <td class="${d.sn>0?'down':''}">${d.sn>0?'− ':''}${fmt(d.sn)}</td><td><b>${fmt(d.net)}</b></td><td>${fmt(d.net*AR_MULT)}</td></tr>`).join('');
+  const groups=[...new Set(data.map(d=>d.rate))].sort((a,b)=>b-a).map(r=>{
+    const list=data.filter(d=>d.rate===r).sort((a,b)=>b.ca-a.ca);
+    return {r,list,n:list.length,ca:sum(list,'ca'),br:sum(list,'br'),sn:sum(list,'sn'),net:sum(list,'net')};
+  });
+  const sel=groups.some(g=>g.r===RATE_SEL)?RATE_SEL:null;
+  const shown=sel===null?groups:groups.filter(g=>g.r===sel);
+  const share=v=>totCA>0?Math.round(v/totCA*1000)/10:0;
+  const chips=`<button type="button" class="${sel===null?'on':''}" onclick="pickRate(null)">Tous les taux</button>`
+    +groups.map(g=>`<button type="button" class="${sel===g.r?'on':''}" onclick="pickRate(${g.r})">${g.r.toLocaleString('fr-FR')} % · ${g.n} agent${g.n>1?'s':''}</button>`).join('');
+  const cards=shown.map(g=>`<div class="card rc"><div class="rch"><span class="rate">${g.r.toLocaleString('fr-FR')} %</span>
+    <span class="hint" style="margin:0">${g.n} agent${g.n>1?'s':''} · ${share(g.ca).toLocaleString('fr-FR')} % du CA de la semaine</span></div>
+    <i class="pg ok"><u style="width:${Math.max(share(g.ca),1)}%"></u></i>
+    <div class="tiles" style="margin-bottom:12px">
+      <div class="k"><span>Production (CA)</span><b>${fmt(g.ca)}</b></div>
+      <div class="k"><span>Commission brute</span><b>${fmt(g.br)}</b></div>
+      <div class="s"><span>Sanctions</span><b class="${g.sn>0?'down':''}">− ${fmt(g.sn)}</b></div>
+      <div class="k"><span>Commission nette ${g.r.toLocaleString('fr-FR')} %</span><b>${fmt(g.net)}</b><span>${fmt(g.net*AR_MULT)} Ar · ${fmt(g.net*CRYPTO_RATE)} USDT</span></div>
+    </div>
+    <table data-fc="1"><tr><th>Agent</th><th>CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>
+    ${g.list.map(d=>`<tr><td><a href="#" onclick="pick('${d.p.id}');return false">${esc(d.p.full_name||d.p.email)}</a></td>
+      <td>${fmt(d.ca)}</td><td>${fmt(d.br)}</td><td class="${d.sn>0?'down':''}">${d.sn>0?'− ':''}${fmt(d.sn)}</td>
+      <td><b>${fmt(d.net)}</b></td><td>${fmt(d.net*AR_MULT)}</td></tr>`).join('')}
+    <tfoot><tr><td>Total ${g.r.toLocaleString('fr-FR')} %</td><td>${fmt(g.ca)}</td><td>${fmt(g.br)}</td><td>${g.sn>0?'− ':''}${fmt(g.sn)}</td><td>${fmt(g.net)}</td><td>${fmt(g.net*AR_MULT)}</td></tr></tfoot></table></div>`).join('');
   return `<div class="card"><h2>Production et commissions par taux</h2>
-  <p class="hint">Sélectionnez un ou plusieurs taux pour obtenir la somme de la production et des commissions des agents concernés, sur la semaine affichée (commission nette = CA × taux − sanctions).</p>
-  <div class="nav" style="margin-bottom:12px">${chips}</div>
-  <div class="tiles">
-    <div class="k"><span>Sélection</span><b style="font-size:16px">${esc(label)}</b><span>${f.length} agent${f.length>1?'s':''}</span></div>
-    <div class="k"><span>Production (CA)</span><b>${fmt(sFC)}</b><span>${share(sFC)} du CA total</span></div>
-    <div class="k"><span>Commission brute</span><b>${fmt(sBr)}</b></div>
-    <div class="s"><span>Sanctions</span><b class="${sSn>0?'down':''}">− ${fmt(sSn)}</b></div>
-    <div class="k"><span>Commission nette à verser</span><b>${fmt(sNet)}</b><span>${fmt(sNet*AR_MULT)} Ar · ${fmt(sNet*CRYPTO_RATE)} USDT</span></div>
-  </div>
-  <h2 style="margin-top:6px">Répartition par taux</h2>
-  <table data-nf><tr><th>Taux</th><th>Agents</th><th>Production (CA)</th><th>% du CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${grows}
-  <tfoot><tr><td>Total</td><td>${data.length}</td><td>${fmt(totCA)}</td><td>${totCA>0?'100 %':'—'}</td><td>${fmt(sum(data,'br'))}</td><td>${sum(data,'sn')>0?'− ':''}${fmt(sum(data,'sn'))}</td><td>${fmt(sum(data,'net'))}</td><td>${fmt(sum(data,'net')*AR_MULT)}</td></tr></tfoot></table>
-  <h2 style="margin-top:18px">Agents de la sélection (${esc(label)})</h2>
-  <table data-fc="2"><tr><th>Agent</th><th>Taux</th><th>CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${arows}
-  <tfoot><tr><td>Total sélection</td><td></td><td>${fmt(sFC)}</td><td>${fmt(sBr)}</td><td>${sSn>0?'− ':''}${fmt(sSn)}</td><td>${fmt(sNet)}</td><td>${fmt(sNet*AR_MULT)}</td></tr></tfoot></table></div>`;
+  <p class="hint">Chaque taux est calculé séparément (les taux ne sont jamais additionnés entre eux). Choisissez un taux pour n'afficher que lui ; semaine affichée, commission nette = CA × taux − sanctions.</p>
+  <div class="nav" style="margin:0">${chips}</div></div>${cards}`;
 }
 
 // ---------- Tableau de bord général (admin) ----------
@@ -988,9 +1021,30 @@ async function show(){
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
   ${nav}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${sanTab}${team}${access}</div>`;
+  animateNums(t+'|'+from+'|'+viewId);
   if(admin) applyFilter();
   if(admin && $('ag_list')) filterAgents(AGQ);
   if(t==='reports'&&!admin) calc();
+}
+
+// Animation des chiffres clés (une fois par page / semaine / agent, pas à chaque actualisation automatique)
+let ANIM_KEY='';
+function animateNums(key){
+  if(key===ANIM_KEY || matchMedia('(prefers-reduced-motion: reduce)').matches) return;
+  ANIM_KEY=key;
+  document.querySelectorAll('.tiles b').forEach(el=>{
+    const txt=el.textContent.trim();
+    if(!/^[−-]?\s?[\d\s\u00a0\u202f]+(,\d+)?$/.test(txt)) return;
+    const neg=/^[−-]/.test(txt), to=num(txt.replace(/^[−-]\s?/,''));
+    if(!Number.isFinite(to)||to===0) return;
+    const t0=performance.now(), dur=650;
+    const step=now=>{
+      const k=Math.min((now-t0)/dur,1), e=1-Math.pow(1-k,3);
+      el.textContent=(neg?'− ':'')+fmt(to*e);
+      if(k<1) requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  });
 }
 
 // ---------- Suivi du CA par agent et par modèle (admin), filtré par semaine ----------
