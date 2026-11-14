@@ -29,7 +29,7 @@ header{padding:8px 20px!important;gap:12px}
 header .ctl{display:none}
 .pro-act{display:flex;gap:8px;align-items:center}
 .pro-ib{width:36px;height:36px;padding:0!important;display:grid;place-items:center}
-.pro-ib svg,.side svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
+.pro-ib svg,.side svg,.pro-k svg,#pro-cmd svg,#pro-top svg,#pro-set svg{width:17px;height:17px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round;flex:none}
 .pro-k{display:flex;gap:8px;align-items:center;min-width:190px;justify-content:space-between;color:var(--mute)}
 .pro-k kbd{font:11px "IBM Plex Sans";border:1px solid var(--line);border-radius:5px;padding:1px 6px;background:var(--bg)}
 .pro-user{display:flex;gap:9px;align-items:center;padding:3px 10px 3px 3px;border:1px solid var(--line);border-radius:999px;background:var(--card)}
@@ -94,6 +94,9 @@ tbody tr:hover td,table tr:hover td{background:color-mix(in srgb,var(--acc) 6%,t
 #pro-cmd ul{list-style:none;margin:0;padding:6px;max-height:340px;overflow:auto}
 #pro-cmd li{padding:9px 12px;border-radius:7px;cursor:pointer;display:flex;gap:10px;align-items:center}
 #pro-cmd li.on{background:color-mix(in srgb,var(--acc) 12%,transparent);color:var(--acc)}
+#pro-cmd li{white-space:nowrap}
+#pro-cmd li svg{color:var(--mute)}
+#pro-cmd li.on svg{color:var(--acc)}
 #pro-cmd li em{margin-left:auto;font-style:normal;color:var(--mute);font-size:12px}
 /* Notifications */
 #pro-toasts{position:fixed;right:16px;bottom:16px;z-index:300;display:grid;gap:8px}
