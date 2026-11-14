@@ -1,0 +1,136 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Shift Report — Export pour IA</title>
+<style>
+:root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--card:#fff;--err:#b3261e}
+@media(prefers-color-scheme:dark){:root{--bg:#141a20;--ink:#e6ebf0;--mute:#93a1b0;--line:#2c3742;--acc:#4fb79e;--card:#1c242c;--err:#ff8a80}}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--ink);font:15px/1.5 system-ui,-apple-system,Segoe UI,Roboto,sans-serif}
+main{max-width:900px;margin:0 auto;padding:16px}
+h1{font-size:19px;margin:0 0 4px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:16px;margin-bottom:14px}
+.hint{color:var(--mute);font-size:13px;margin:4px 0 10px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input,button{font:inherit;padding:8px 10px;border:1px solid var(--line);border-radius:7px;background:var(--card);color:var(--ink)}
+button{cursor:pointer;font-weight:500}
+button.p{background:var(--acc);border-color:var(--acc);color:#fff}
+button:disabled{opacity:.5}
+textarea{width:100%;height:440px;margin-top:10px;font:12.5px/1.45 ui-monospace,Menlo,Consolas,monospace;padding:10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--ink)}
+.msg{color:var(--err);margin-top:8px}
+</style>
+</head>
+<body>
+<main>
+<div class="card">
+  <h1>Shift Report — Export pour IA</h1>
+  <p class="hint">Collez votre lien IA (ou seulement le jeton), choisissez une semaine, puis copiez le rapport dans ChatGPT ou Claude.</p>
+  <div class="row" style="margin-bottom:8px">
+    <input id="tok" placeholder="Lien IA ou jeton" style="flex:1;min-width:260px" autocomplete="off">
+  </div>
+  <div class="row">
+    <button onclick="shiftW(-1)" aria-label="Semaine précédente">‹</button>
+    <input id="wk" type="date" onchange="load()">
+    <button onclick="shiftW(1)" aria-label="Semaine suivante">›</button>
+    <button class="p" onclick="load()">Charger le rapport</button>
+    <span id="lbl" class="hint" style="margin:0"></span>
+  </div>
+  <div id="err" class="msg"></div>
+</div>
+<div class="card" id="out" hidden>
+  <div class="row"><button class="p" onclick="copyR(this)">Copier le rapport</button><button onclick="dl()">Télécharger (.md)</button></div>
+  <textarea id="txt" readonly></textarea>
+</div>
+</main>
+<script>
+const API='https://gnhvvhjnfsetopbekqcp.supabase.co/rest/v1/rpc/ia_report';
+const KEY='sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
+const AR=3900, USDT=1, NW=8;
+const $=id=>document.getElementById(id);
+const iso=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const dt=s=>new Date(s+'T00:00:00');
+const monday=d=>{const x=new Date(d);x.setDate(x.getDate()-(x.getDay()+6)%7);x.setHours(0,0,0,0);return x;};
+const fmt=n=>(Math.round(n*100)/100).toLocaleString('fr-FR');
+const fr=s=>dt(s).toLocaleDateString('fr-FR');
+const dshort=s=>dt(s).toLocaleDateString('fr-FR',{weekday:'short',day:'2-digit',month:'2-digit'});
+let ws=monday(new Date()), REPORT='';
+try{ $('tok').value=localStorage.getItem('sr-ia-tok')||''; }catch(e){}
+$('wk').value=iso(ws);
+
+function shiftW(n){ ws.setDate(ws.getDate()+n*7); $('wk').value=iso(ws); load(); }
+function getToken(){
+  const v=$('tok').value.trim(), m=v.match(/p_token=([A-Za-z0-9]+)/);
+  return m?m[1]:v;
+}
+async function load(){
+  const err=$('err'); err.textContent='';
+  const v=$('wk').value; if(v) ws=monday(dt(v));
+  $('wk').value=iso(ws);
+  const tok=getToken();
+  if(!tok){ err.textContent='Collez votre lien IA ou votre jeton.'; return; }
+  try{ localStorage.setItem('sr-ia-tok',$('tok').value.trim()); }catch(e){}
+  const we=new Date(ws); we.setDate(we.getDate()+6);
+  const hs=new Date(ws); hs.setDate(hs.getDate()-(NW-1)*7);
+  $('lbl').textContent='Semaine du '+fr(iso(ws))+' au '+fr(iso(we));
+  const url=API+'?p_token='+encodeURIComponent(tok)+'&p_from='+iso(hs)+'&p_to='+iso(we)+'&apikey='+KEY;
+  try{
+    const r=await fetch(url,{headers:{apikey:KEY}});
+    if(!r.ok){
+      let m=''; try{ m=(await r.json()).message||''; }catch(e){}
+      throw new Error(r.status===400||/refus/.test(m)?'Accès refusé : vérifiez le jeton (ou le lien est désactivé).':'Erreur '+r.status+' '+m);
+    }
+    REPORT=build(await r.json(),hs,ws,we);
+    $('txt').value=REPORT; $('out').hidden=false;
+  }catch(e){ err.textContent=e.message; $('out').hidden=true; }
+}
+function build(d,hs,ws,we){
+  const from=iso(ws), to=iso(we), hStart=iso(hs);
+  const days=[...Array(7)].map((_,i)=>{const x=new Date(ws);x.setDate(x.getDate()+i);return iso(x);});
+  const ent=d.saisies||[], san=d.sanctions||[], ags=d.agents||[];
+  const goalsAg={}; (d.objectifs_agence||[]).forEach(g=>goalsAg[g.jour]=g.objectif);
+  const wk=day=>Math.floor(Math.round((dt(day)-dt(hStart))/864e5)/7);
+  let tot=0, totNet=0, act=0;
+  let t='# Shift Report — semaine du '+fr(from)+' au '+fr(to)+'\n';
+  t+='Règles : commission nette = CA × taux − sanctions (jamais sous 0). 1 unité de commission = '+AR+' Ar = '+USDT+' USDT.\n\n';
+  const body=ags.map(a=>{
+    const mine=ent.filter(r=>r.user_id===a.id), w=mine.filter(r=>r.day>=from&&r.day<=to);
+    const ca=w.reduce((s,r)=>s+Number(r.ca||0),0);
+    const sw=san.filter(r=>r.user_id===a.id&&r.day>=from&&r.day<=to);
+    const sn=sw.reduce((s,r)=>s+Number(r.montant||0),0);
+    const br=ca*Number(a.commission||0), nt=Math.max(br-sn,0);
+    tot+=ca; totNet+=nt; if(ca>0) act++;
+    let s='## '+(a.nom||'(sans nom)')+'\n- Taux : '+(Math.round(a.commission*1e4)/100).toLocaleString('fr-FR')+' %\n- CA de la semaine : '+fmt(ca)+'\n- Commission brute : '+fmt(br)+'\n- Sanctions : '+fmt(sn)+'\n- Commission nette : '+fmt(nt)+' ('+fmt(nt*AR)+' Ar)\n';
+    days.forEach(k=>{
+      const l=w.filter(r=>r.day===k);
+      if(l.length) s+='- '+dshort(k)+' : '+fmt(l.reduce((x,r)=>x+Number(r.ca||0),0))+' → '+l.map(r=>r.model_name+' '+fmt(r.ca)+(r.detail?' ['+r.detail+']':'')).join(', ')+'\n';
+    });
+    sw.forEach(r=>{ s+='- Sanction '+fr(r.jour)+' : '+fmt(r.montant)+(r.motif?' ('+r.motif+')':'')+'\n'; });
+    const wsr=[...Array(NW)].map((_,i)=>{const x=new Date(hs);x.setDate(x.getDate()+i*7);return {d:x,ca:0};});
+    mine.forEach(r=>{ const i=wk(r.day); if(wsr[i]) wsr[i].ca+=Number(r.ca||0); });
+    s+='- CA des '+NW+' dernières semaines : '+wsr.map(x=>x.d.toLocaleDateString('fr-FR',{day:'2-digit',month:'2-digit'})+' = '+fmt(x.ca)).join(' ; ')+'\n';
+    return s;
+  }).join('\n');
+  t+='## Total équipe\n- CA : '+fmt(tot)+'\n- Commissions nettes à verser : '+fmt(totNet)+' ('+fmt(totNet*AR)+' Ar)\n- Agents actifs : '+act+' / '+ags.length+'\n';
+  const ag=days.filter(k=>goalsAg[k]!=null).map(k=>dshort(k)+' = '+fmt(goalsAg[k]));
+  if(ag.length) t+='- Objectifs agence par jour : '+ag.join(' ; ')+'\n';
+  const gm=d.objectifs_modeles||[];
+  if(gm.length) t+='- Objectif journalier par modèle : '+gm.map(g=>g.modele+' = '+fmt(g.objectif_journalier)).join(' ; ')+'\n';
+  return t+'\n'+body;
+}
+function copyR(b){
+  const o=b.textContent;
+  (navigator.clipboard?navigator.clipboard.writeText(REPORT):Promise.reject())
+    .catch(()=>{ const t=$('txt'); t.select(); document.execCommand('copy'); })
+    .finally(()=>{ b.textContent='Copié ✓'; setTimeout(()=>b.textContent=o,1500); });
+}
+function dl(){
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([REPORT],{type:'text/markdown'}));
+  a.download='shift-report-'+iso(ws)+'.md'; a.click();
+}
+if($('tok').value) load();
+</script>
+</body>
+</html>
