@@ -234,7 +234,11 @@ const evoCls = e => e===null ? '' : e>=0 ? 'up' : 'down';
 let SAN = [], SAN_OK = true;
 const sanSum = (uid,f,t) => SAN.filter(r=>(!uid||r.user_id===uid)&&r.day>=f&&r.day<=t).reduce((s,r)=>s+Number(r.amount||0),0);
 // Commission nette = commission brute (CA × taux) − sanctions de la période, jamais en dessous de 0
-const netCo = (brute,san) => Math.max(brute-san,0);
+// Avec les bonus : commission nette = commission brute + bonus − sanctions, jamais en dessous de 0
+const netCo = (brute,san,bonus) => Math.max(brute+(bonus||0)-san,0);
+// BON : bonus de la période chargée (même logique que les sanctions) ; l'agent ne reçoit que les siens.
+let BON = [], BON_OK = true, bonUser = null, bonDay = null;
+const bonSum = (uid,f,t) => BON.filter(r=>(!uid||r.user_id===uid)&&r.day>=f&&r.day<=t).reduce((s,r)=>s+Number(r.amount||0),0);
 let sanUser = null, sanDay = null;
 
 // ---------- Recherche rapide (admin) : filtre l'affichage sans recharger les données ----------
@@ -736,14 +740,14 @@ function rateCard(profiles,rows){
   const caBy={};
   rows.forEach(r=>{ if(r.day>=from&&r.day<=to) caBy[r.user_id]=(caBy[r.user_id]||0)+Number(r.ca||0); });
   const data=ags.map(p=>{
-    const ca=caBy[p.id]||0, br=ca*p.commission, sn=sanSum(p.id,from,to);
-    return {p,rate:pv(p.commission),ca,br,sn,net:netCo(br,sn)};
+    const ca=caBy[p.id]||0, br=ca*p.commission, sn=sanSum(p.id,from,to), bn=bonSum(p.id,from,to);
+    return {p,rate:pv(p.commission),ca,br,sn,bn,net:netCo(br,sn,bn)};
   });
   const sum=(a,k)=>a.reduce((s,x)=>s+x[k],0);
   const totCA=sum(data,'ca');
   const groups=[...new Set(data.map(d=>d.rate))].sort((a,b)=>b-a).map(r=>{
     const list=data.filter(d=>d.rate===r).sort((a,b)=>b.ca-a.ca);
-    return {r,list,n:list.length,ca:sum(list,'ca'),br:sum(list,'br'),sn:sum(list,'sn'),net:sum(list,'net')};
+    return {r,list,n:list.length,ca:sum(list,'ca'),br:sum(list,'br'),sn:sum(list,'sn'),bn:sum(list,'bn'),net:sum(list,'net')};
   });
   const sel=groups.some(g=>g.r===RATE_SEL)?RATE_SEL:null;
   const shown=sel===null?groups:groups.filter(g=>g.r===sel);
@@ -756,17 +760,18 @@ function rateCard(profiles,rows){
     <div class="tiles" style="margin-bottom:12px">
       <div class="k"><span>Production (CA)</span><b>${fmt(g.ca)}</b></div>
       <div class="k"><span>Commission brute</span><b>${fmt(g.br)}</b></div>
+      <div class="k"><span>Bonus</span><b class="${g.bn>0?'up':''}">+ ${fmt(g.bn)}</b></div>
       <div class="s"><span>Sanctions</span><b class="${g.sn>0?'down':''}">− ${fmt(g.sn)}</b></div>
       <div class="k"><span>Commission nette ${label(g)}</span><b>${fmt(g.net)}</b><span>${fmt(g.net*AR_MULT)} Ar · ${fmt(g.net*CRYPTO_RATE)} USDT</span></div>
     </div>
-    <table data-fc="1"><tr><th>Agent</th><th>CA</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>
+    <table data-fc="1"><tr><th>Agent</th><th>CA</th><th>Commission brute</th><th>Bonus</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>
     ${g.list.map(d=>`<tr><td><a href="#" onclick="pick('${d.p.id}');return false">${esc(d.p.full_name||d.p.email)}</a></td>
-      <td>${fmt(d.ca)}</td><td>${fmt(d.br)}</td><td class="${d.sn>0?'down':''}">${d.sn>0?'− ':''}${fmt(d.sn)}</td>
+      <td>${fmt(d.ca)}</td><td>${fmt(d.br)}</td><td class="${d.bn>0?'up':''}">${d.bn>0?'+ ':''}${fmt(d.bn)}</td><td class="${d.sn>0?'down':''}">${d.sn>0?'− ':''}${fmt(d.sn)}</td>
       <td><b>${fmt(d.net)}</b></td><td>${fmt(d.net*AR_MULT)}</td></tr>`).join('')}
-    <tfoot><tr><td>Total ${label(g)}</td><td>${fmt(g.ca)}</td><td>${fmt(g.br)}</td><td>${g.sn>0?'− ':''}${fmt(g.sn)}</td><td>${fmt(g.net)}</td><td>${fmt(g.net*AR_MULT)}</td></tr></tfoot></table></div>`).join('');
+    <tfoot><tr><td>Total ${label(g)}</td><td>${fmt(g.ca)}</td><td>${fmt(g.br)}</td><td>${g.bn>0?'+ ':''}${fmt(g.bn)}</td><td>${g.sn>0?'− ':''}${fmt(g.sn)}</td><td>${fmt(g.net)}</td><td>${fmt(g.net*AR_MULT)}</td></tr></tfoot></table></div>`).join('');
   return `<div class="card"><div class="row" style="justify-content:space-between;align-items:flex-end">
     <div><h2 style="margin:0">Production et commissions par taux</h2>
-    <p class="hint" style="margin:4px 0 0">Chaque taux est calculé séparément (jamais additionné aux autres) · semaine affichée · commission nette = CA × taux − sanctions.</p></div>
+    <p class="hint" style="margin:4px 0 0">Chaque taux est calculé séparément (jamais additionné aux autres) · semaine affichée · commission nette = CA × taux + bonus − sanctions.</p></div>
     <label class="mm" style="display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px">Taux à afficher<select class="sel" onchange="pickRate(this.value)" aria-label="Choisir un taux">${opts}</select></label></div></div>
   <div class="g2">
     <div class="card"><h2>CA par taux</h2><p class="hint">Part de chaque taux dans le CA de la semaine.</p>${donut(groups.map(g=>({l:label(g),v:g.ca})),'CA')}</div>
@@ -792,7 +797,8 @@ function dashCard(profiles,rows,hStart){
   const tca=Object.values(cur).reduce((s,x)=>s+x,0); // toutes les saisies de la semaine, comme les objectifs
   // Commissions à verser = commission brute de chaque agent − ses sanctions de la semaine (jamais négative)
   const tsan=sanSum(null,from,to);
-  const tco=ag.reduce((s,a)=>s+netCo(a.ca*a.p.commission,sanSum(a.p.id,from,to)),0);
+  const tbon=bonSum(null,from,to);
+  const tco=ag.reduce((s,a)=>s+netCo(a.ca*a.p.commission,sanSum(a.p.id,from,to),bonSum(a.p.id,from,to)),0);
   const act=ag.filter(a=>a.ca>0).length;
   const evo=evoOf(weeks[STAT_WEEKS-1].ca,weeks[STAT_WEEKS-2].ca);
   const today=iso(new Date());
@@ -806,9 +812,10 @@ function dashCard(profiles,rows,hStart){
   const rest=agS.slice(5).reduce((s,a)=>s+a.ca,0); if(rest>0) dn.push({l:'Autres',v:rest});
   return `<div class="tiles">
     <div class="k"><span>Chiffre d'affaires</span><b>${fmt(tca)}</b><span class="${evoCls(evo)}">${evoTxt(evo)} vs semaine précédente</span></div>
-    <div class="k"><span>Commissions à verser</span><b>${fmt(tco)}</b>${SAN_OK?'<span>après déduction des sanctions</span>':''}</div>
+    <div class="k"><span>Commissions à verser</span><b>${fmt(tco)}</b><span>bonus inclus, sanctions déduites</span></div>
     <div class="k"><span>Commissions (Ar)</span><b>${fmt(tco*AR_MULT)}</b></div>
     ${SAN_OK?`<div class="s"><span>Sanctions de la semaine</span><b class="${tsan>0?'down':''}">${fmt(tsan)}</b></div>`:''}
+    ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${tbon>0?'up':''}">${fmt(tbon)}</b></div>`:''}
     <div class="k"><span>Agents actifs</span><b>${act} / ${profiles.length}</b></div>
     <div class="k"><span>CA moyen par agent actif</span><b>${fmt(act?tca/act:0)}</b></div>
   </div>
@@ -840,7 +847,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
     (models[k]=models[k]||{n:r.model_name,ca:0}).ca+=ca;
   });
   const ca=days.reduce((s,d)=>s+(dayT[iso(d)]||0),0), brute=ca*vu.commission;
-  const sw=sanSum(vu.id,from,to), co=netCo(brute,sw);
+  const sw=sanSum(vu.id,from,to), bw=bonSum(vu.id,from,to), co=netCo(brute,sw,bw);
   const top=Object.values(models).sort((a,b)=>b.ca-a.ca).slice(0,6);
   const m=mm||{};
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
@@ -852,6 +859,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
     <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
     <div class="k"><span>Taux de commission</span><b>${pct(vu.commission)}</b></div>
     <div class="k"><span>Commission brute</span><b>${fmt(brute)}</b></div>
+    ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     ${SAN_OK?`<div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>`:''}
     <div class="k"><span>Commission nette</span><b>${fmt(co)}</b></div>
     <div class="k"><span>Commission nette (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>
@@ -876,12 +884,13 @@ function sanCard(vu,ca,tiles){
   const keys=Object.keys(byDay).sort();
   const sw=list.reduce((s,r)=>s+Number(r.amount||0),0);
   const cumul=sanSum(vu.id,'0000-01-01','9999-12-31'); // toute la période chargée (8 semaines)
-  const brute=ca*vu.commission, net=netCo(brute,sw);
+  const brute=ca*vu.commission, bw=bonSum(vu.id,from,to), net=netCo(brute,sw,bw);
   const own=vu.id===me.id;
   return `<div class="card"><h2>${own?'Mes sanctions':'Sanctions — '+esc(vu.full_name||vu.email)}</h2>
   <p class="hint">Sanctions de la semaine affichée, regroupées par date. Le montant total des sanctions est déduit de la commission${own?' de la semaine':''}.</p>
   ${tiles?`<div class="tiles">
     <div class="k"><span>Commission brute (${fmt(ca)} × ${pct(vu.commission)})</span><b>${fmt(brute)}</b></div>
+    ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     <div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>
     <div class="k"><span>Commission nette</span><b>${fmt(net)}</b><span>${fmt(net*AR_MULT)} Ar</span></div>
     <div class="s"><span>Sanctions cumulées (${STAT_WEEKS} semaines)</span><b>${fmt(cumul)}</b></div>
@@ -907,11 +916,11 @@ function sanAdminView(profiles,rows){
   const caBy={};
   rows.forEach(r=>{ if(r.day>=from&&r.day<=to) caBy[r.user_id]=(caBy[r.user_id]||0)+Number(r.ca||0); });
   const nameOf=id=>{ const p=profiles.find(x=>x.id===id); return p?(p.full_name||p.email):'Compte retiré'; };
-  let tCa=0,tBr=0,tSan=0,tNet=0;
+  let tCa=0,tBr=0,tBon=0,tSan=0,tNet=0;
   const sum=agents.map(a=>{
-    const ca=caBy[a.id]||0, br=ca*a.commission, sn=sanSum(a.id,from,to), nt=netCo(br,sn);
-    tCa+=ca; tBr+=br; tSan+=sn; tNet+=nt;
-    return `<tr><td>${esc(a.full_name||a.email)}</td><td>${fmt(ca)}</td><td>${pct(a.commission)}</td><td>${fmt(br)}</td>
+    const ca=caBy[a.id]||0, br=ca*a.commission, sn=sanSum(a.id,from,to), bn=bonSum(a.id,from,to), nt=netCo(br,sn,bn);
+    tCa+=ca; tBr+=br; tBon+=bn; tSan+=sn; tNet+=nt;
+    return `<tr><td>${esc(a.full_name||a.email)}</td><td>${fmt(ca)}</td><td>${pct(a.commission)}</td><td>${fmt(br)}</td><td class="${bn>0?'up':''}">${bn>0?'+ ':''}${fmt(bn)}</td>
       <td class="${sn>0?'down':''}">${sn>0?'− ':''}${fmt(sn)}</td><td><b>${fmt(nt)}</b></td><td>${fmt(nt*AR_MULT)}</td></tr>`;
   }).join('');
   const list=week.map(r=>`<tr><td>${dayShort(new Date(r.day+'T00:00:00'))}</td><td>${esc(nameOf(r.user_id))}</td>
@@ -928,9 +937,9 @@ function sanAdminView(profiles,rows){
     <button class="p" onclick="addSanction()">Enregistrer la sanction</button></div>
   <div id="sn_msg" class="${notice?'ok':'msg'}">${esc(notice)}</div></div>
   <div class="card"><h2>Récapitulatif des commissions de la semaine</h2>
-  <p class="hint">Commission nette = CA × taux − sanctions de la semaine.</p>
-  <table><tr><th>Agent</th><th>CA</th><th>Taux</th><th>Commission brute</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${sum}
-  <tfoot><tr><td>Total</td><td>${fmt(tCa)}</td><td></td><td>${fmt(tBr)}</td><td class="${tSan>0?'down':''}">${tSan>0?'− ':''}${fmt(tSan)}</td><td>${fmt(tNet)}</td><td>${fmt(tNet*AR_MULT)}</td></tr></tfoot></table></div>
+  <p class="hint">Commission nette = CA × taux + bonus − sanctions de la semaine.</p>
+  <table><tr><th>Agent</th><th>CA</th><th>Taux</th><th>Commission brute</th><th>Bonus</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${sum}
+  <tfoot><tr><td>Total</td><td>${fmt(tCa)}</td><td></td><td>${fmt(tBr)}</td><td>${tBon>0?'+ ':''}${fmt(tBon)}</td><td class="${tSan>0?'down':''}">${tSan>0?'− ':''}${fmt(tSan)}</td><td>${fmt(tNet)}</td><td>${fmt(tNet*AR_MULT)}</td></tr></tfoot></table></div>
   <div class="card"><h2>Sanctions de la semaine</h2>
   ${list?`<table data-fc="3"><tr><th>Date</th><th>Agent</th><th>Motif</th><th>Montant</th><th>Montant (Ar)</th><th></th></tr>${list}</table>`:'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
   notice='';
@@ -957,6 +966,69 @@ async function delSanction(b){
   show();
 }
 
+// ---------- Bonus : espace admin ----------
+function bonusAdminView(profiles,rows){
+  if(!BON_OK) return `<div class="card"><h2>Bonus</h2><p class="msg">Table « bonuses » absente : exécutez le fichier SQL fourni (shift-report.sql) dans Supabase pour activer les bonus.</p></div>`;
+  const from=iso(days[0]), to=iso(days[6]), today=iso(new Date());
+  const agents=profiles.filter(p=>p.role!=='admin')
+    .sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr'));
+  if(!agents.length) return '<div class="card"><p class="hint">Aucun agent pour le moment.</p></div>';
+  const selU=agents.find(a=>a.id===bonUser)?bonUser:agents[0].id;
+  const selD=bonDay||(today>=from&&today<=to?today:from);
+  const week=BON.filter(r=>r.day>=from&&r.day<=to).sort((a,b)=>a.day<b.day?1:a.day>b.day?-1:0);
+  const caBy={};
+  rows.forEach(r=>{ if(r.day>=from&&r.day<=to) caBy[r.user_id]=(caBy[r.user_id]||0)+Number(r.ca||0); });
+  const nameOf=id=>{ const p=profiles.find(x=>x.id===id); return p?(p.full_name||p.email):'Compte retiré'; };
+  let tCa=0,tBr=0,tBon=0,tSan=0,tNet=0;
+  const sum=agents.map(a=>{
+    const ca=caBy[a.id]||0, br=ca*a.commission, bn=bonSum(a.id,from,to), sn=sanSum(a.id,from,to), nt=netCo(br,sn,bn);
+    tCa+=ca; tBr+=br; tBon+=bn; tSan+=sn; tNet+=nt;
+    return `<tr><td>${esc(a.full_name||a.email)}</td><td>${fmt(ca)}</td><td>${fmt(br)}</td>
+      <td class="${bn>0?'up':''}">${bn>0?'+ ':''}${fmt(bn)}</td><td class="${sn>0?'down':''}">${sn>0?'− ':''}${fmt(sn)}</td><td><b>${fmt(nt)}</b></td><td>${fmt(nt*AR_MULT)}</td></tr>`;
+  }).join('');
+  const list=week.map(r=>`<tr><td>${dayShort(new Date(r.day+'T00:00:00'))}</td><td>${esc(nameOf(r.user_id))}</td>
+    <td style="white-space:normal">${r.reason?esc(r.reason):'<span style="color:var(--mute)">—</span>'}</td>
+    <td class="up"><b>+ ${fmt(r.amount)}</b></td><td>${fmt(r.amount*AR_MULT)}</td>
+    <td><button type="button" data-id="${r.id}" onclick="delBonus(this)" aria-label="Supprimer le bonus" title="Supprimer">×</button></td></tr>`).join('');
+  const html=`<div class="card mm"><h2>Ajouter un bonus</h2>
+  <p class="hint">Définissez le bonus d'un agent à une date donnée. Il est ajouté à sa commission : <b>commission nette = commission + bonus − sanctions</b> (jamais en dessous de 0). Le montant est dans la même unité que la commission.</p>
+  <div class="row" style="align-items:flex-end">
+    <label>Agent<select id="bn_u">${agents.map(a=>`<option value="${a.id}" ${a.id===selU?'selected':''}>${esc(a.full_name||a.email)}</option>`).join('')}</select></label>
+    <label>Date<input id="bn_d" type="date" value="${selD}"></label>
+    <label>Montant<input id="bn_a" inputmode="decimal" placeholder="Ex. 10" style="width:110px"></label>
+    <label>Motif (facultatif)<input id="bn_r" maxlength="200" placeholder="Ex. Objectif atteint, meilleur CA…" style="min-width:220px"></label>
+    <button class="p" onclick="addBonus()">Enregistrer le bonus</button></div>
+  <div id="bn_msg" class="${notice?'ok':'msg'}">${esc(notice)}</div></div>
+  <div class="card"><h2>Récapitulatif de la semaine</h2>
+  <p class="hint">Commission nette = commission brute + bonus − sanctions.</p>
+  <table><tr><th>Agent</th><th>CA</th><th>Commission brute</th><th>Bonus</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>${sum}
+  <tfoot><tr><td>Total</td><td>${fmt(tCa)}</td><td>${fmt(tBr)}</td><td>${tBon>0?'+ ':''}${fmt(tBon)}</td><td>${tSan>0?'− ':''}${fmt(tSan)}</td><td>${fmt(tNet)}</td><td>${fmt(tNet*AR_MULT)}</td></tr></tfoot></table></div>
+  <div class="card"><h2>Bonus de la semaine</h2>
+  ${list?`<table data-fc="3"><tr><th>Date</th><th>Agent</th><th>Motif</th><th>Montant</th><th>Montant (Ar)</th><th></th></tr>${list}</table>`:'<p class="hint" style="margin:0">Aucun bonus sur la semaine affichée.</p>'}</div>`;
+  notice='';
+  return html;
+}
+async function addBonus(){
+  const uid=$('bn_u').value, day=$('bn_d').value, raw=$('bn_a').value.trim(), amt=num(raw);
+  const reason=$('bn_r').value.trim().slice(0,200), m=$('bn_msg');
+  m.className='msg';
+  if(!uid) return m.textContent='Choisissez un agent.';
+  if(!day) return m.textContent='Indiquez la date du bonus.';
+  if(!raw||!Number.isFinite(amt)||amt<=0) return m.textContent='Indiquez un montant de bonus valide (nombre positif).';
+  const {error}=await sb.from('bonuses').insert({user_id:uid,day,amount:amt,reason:reason||null});
+  if(error) return m.textContent='Erreur : '+error.message;
+  bonUser=uid; bonDay=day;
+  weekStart=monday(new Date(day+'T00:00:00'));
+  notice='Bonus de '+fmt(amt)+' enregistré.';
+  show();
+}
+async function delBonus(b){
+  if(!confirm('Supprimer ce bonus ?')) return;
+  const {error}=await sb.from('bonuses').delete().eq('id',b.dataset.id);
+  if(error) alert('Erreur : '+error.message);
+  show();
+}
+
 // Montant à verser selon le mode de paiement : USDT pour la crypto, Ariary pour le Mobile Money
 const payAmt = (m,net) => m && isCrypto(m.operator) ? fmt(net*CRYPTO_RATE)+' USDT' : fmt(net*AR_MULT)+' Ar';
 
@@ -976,6 +1048,9 @@ async function show(){
   let sq=sb.from('sanctions').select('id,user_id,day,amount,reason').gte('day',iso(hStart)).lte('day',to).order('day');
   if(!admin) sq=sq.eq('user_id',me.id);
   const P_san=Promise.resolve(sq);
+  let bq=sb.from('bonuses').select('id,user_id,day,amount,reason').gte('day',iso(hStart)).lte('day',to).order('day');
+  if(!admin) bq=bq.eq('user_id',me.id);
+  const P_bon=Promise.resolve(bq);
   const P_md=Promise.resolve(sb.from('models').select('*').order('name'));
   const P_tr=admin ? allEntries(objD,objD).catch(()=>[]) : Promise.resolve([]);
   const P_ag=(admin&&(t==='dash'||t==='goals'||t==='perf')) ? (()=>{ const td0=iso(new Date()), lo=td0<from?td0:from, hi=td0>to?td0:to; return Promise.resolve(sb.from('agency_goals').select('day,amount').gte('day',lo).lte('day',hi)); })() : null;
@@ -1011,6 +1086,12 @@ async function show(){
     else SAN=(sr.data||[]).map(r=>({...r,amount:Number(r.amount||0)}));
   }
 
+  BON=[]; BON_OK=true;
+  {
+    const br0=await P_bon;
+    if(br0.error) BON_OK=false;
+    else BON=(br0.data||[]).map(r=>({...r,amount:Number(r.amount||0)}));
+  }
   const [md,tr]=await Promise.all([P_md,P_tr]);
   const goals=md.error?null:(md.data||[]);
   MODEL_NAMES=(goals||[]).map(g=>String(g.name).trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
@@ -1029,7 +1110,7 @@ async function show(){
   const vu=profiles.find(p=>p.id===viewId)||me;
   const hist=rows.filter(r=>r.user_id===vu.id);
   const caW=hist.reduce((s,r)=>r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); // CA de la semaine affichée pour l'agent consulté
-  const netW=netCo(caW*vu.commission,sanSum(vu.id,from,to)); // commission nette de la semaine = montant à verser
+  const netW=netCo(caW*vu.commission,sanSum(vu.id,from,to),bonSum(vu.id,from,to)); // commission nette de la semaine = montant à verser
 
   const mmRes=await P_mm;
   const mmAll=admin?(mmRes||[]):[];
@@ -1053,18 +1134,19 @@ async function show(){
     const c=await sb.from('agent_credentials').select('user_id,password');
     if(c.error) credOk=false; else (c.data||[]).forEach(r=>{ credBy[r.user_id]=r.password; });
   }
-  let dash='', team='', access='', perf='', sanTab='', comm='';
+  let dash='', team='', access='', perf='', sanTab='', bonTab='', comm='';
   if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu,objData(goals||[],rows,tr,objD));
   if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
   if(admin && t==='comm') comm=rateCard(profiles,rows);
   if(admin && t==='sanctions') sanTab=sanAdminView(profiles,rows);
+  if(admin && t==='bonus') bonTab=bonusAdminView(profiles,rows);
 
   let agent='';
   if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy,netW)+sanCard(vu,caW,false)+statsCard(vu,hist,hStart);
 
   if(admin && t==='team'){
     // commission nette de la semaine affichée, par agent (pour le montant à verser)
-    const netOf=p=>{ const ca=rows.reduce((s,r)=>r.user_id===p.id&&r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); return netCo(ca*p.commission,sanSum(p.id,from,to)); };
+    const netOf=p=>{ const ca=rows.reduce((s,r)=>r.user_id===p.id&&r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); return netCo(ca*p.commission,sanSum(p.id,from,to),bonSum(p.id,from,to)); };
     team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Le montant à verser est la commission nette de la semaine affichée, dans la monnaie du mode de paiement choisi (Ariary pour Mobile Money, USDT pour la crypto). Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Paiement</th><th>À verser (semaine)</th><th>Taux de commission</th><th>Rôle</th></tr>
     ${profiles.map(p=>{
       const m=mmBy[p.id];
@@ -1133,7 +1215,7 @@ async function show(){
 
   const NAV=[['Pilotage',[['dash','Tableau de bord'],['goals','Objectifs'],['perf','CA par modèle']]],
     ['Équipe',[['agent','Fiches agents'],['team','Gestion de l\'équipe']]],
-    ['Rémunération',[['comm','Commissions par taux'],['sanctions','Sanctions']]],
+    ['Rémunération',[['comm','Commissions par taux'],['bonus','Bonus'],['sanctions','Sanctions']]],
     ['Administration',[['access','Accès et identifiants']]]];
   const PAGES={dash:['Tableau de bord','Synthèse de l\'activité, des objectifs et des commissions de la semaine.'],
     goals:['Objectifs','Objectifs de l\'agence, suivi par modèle et rattrapage.'],
@@ -1142,6 +1224,7 @@ async function show(){
     team:['Gestion de l\'équipe','Agents, taux de commission, rôles et modes de paiement.'],
     comm:['Commissions par taux','Production et commissions de chaque taux, calculés séparément.'],
     sanctions:['Sanctions','Saisie des sanctions et récapitulatif des commissions nettes.'],
+    bonus:['Bonus','Bonus des agents : commission nette = commission + bonus − sanctions.'],
     access:['Accès et identifiants','Identifiants de connexion et réinitialisation des mots de passe.']};
   const pg=PAGES[t]||['',''];
   const side=admin?`<aside class="side" aria-label="Navigation">${NAV.map(([h,l])=>`<h4>${h}</h4>`+l.map(([k,n])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${n}</button>`).join('')).join('')}<h4>Outils</h4><button type="button" onclick="window.open('ia.html','_blank')">Export pour IA ↗</button></aside>`:'';
@@ -1173,7 +1256,7 @@ async function show(){
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><div class="ctl"><button type="button" onclick="toggleDark(this)" title="Mode clair / sombre" aria-label="Mode clair ou sombre">${isDark()?'Mode clair':'Mode sombre'}</button><select onchange="setAccent(this.value)" title="Couleur du thème" aria-label="Couleur du thème">${Object.entries(ACCENTS).map(([k,v])=>`<option value="${k}" ${UI.accent===k?'selected':''}>${v}</option>`).join('')}</select></div><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
-  ${admin?`<div class="shell">${side}<div class="content">${head}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${comm}${sanTab}${team}${access}</div></div></div>`:`<div id="adm">${weekBar}${report}</div>`}`;
+  ${admin?`<div class="shell">${side}<div class="content">${head}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${comm}${sanTab}${bonTab}${team}${access}</div></div></div>`:`<div id="adm">${weekBar}${report}</div>`}`;
   animateNums(t+'|'+from+'|'+viewId);
   if(admin) applyFilter();
   if(admin && $('ag_list')) filterAgents(AGQ);
@@ -1249,7 +1332,12 @@ function perfView(profiles,rows,goals,vu,o){
   });
   const grand=Object.values(rowT).reduce((s,x)=>s+x,0);
   const prevGrand=Object.values(prevT).reduce((s,x)=>s+x,0);
-  const ach=(v,g)=>g>0?`<span class="${v>=g?'up':''}">${Math.round(v/g*100)} %</span>`:'—';
+  // Atteinte sur une échelle de 0 à 100 % : la barre et le chiffre s'arrêtent à 100 % (le taux réel reste visible au survol)
+  const ach=(v,g)=>{
+    if(!(g>0)) return '—';
+    const real=v/g*100, c=Math.max(0,Math.min(100,Math.round(real)));
+    return `<span title="Taux réel : ${fmt(Math.round(real))} %" style="display:inline-flex;align-items:center;gap:6px"><i class="pg${v>=g?' ok':''}" style="width:46px;min-width:46px;margin:0"><u style="width:${c}%"></u></i><span class="${v>=g?'up':''}">${c} %</span></span>`;
+  };
   const evo=(c,pv0)=>{ const e=evoOf(c,pv0); return `<span class="${evoCls(e)}">${evoTxt(e)}</span>`; };
   const nameCell=a=>a.link?`<a href="#" onclick="pickPerf('${a.id}');return false">${esc(a.name)}</a>`:esc(a.name);
 
@@ -1298,7 +1386,7 @@ function statsCard(vu,rows,hStart){
   const tot=weeks.reduce((s,w)=>s+w.ca,0);
   const active=weeks.filter(w=>w.ca>0).length;
   // commission estimée nette : CA × taux − sanctions sur les mêmes 8 semaines
-  const co=netCo(tot*vu.commission,sanSum(vu.id,iso(hStart),iso(days[6])));
+  const co=netCo(tot*vu.commission,sanSum(vu.id,iso(hStart),iso(days[6])),bonSum(vu.id,iso(hStart),iso(days[6])));
   const evo=evoOf(weeks[STAT_WEEKS-1].ca,weeks[STAT_WEEKS-2].ca);
 
   return `<div class="card"><h2>Performance — ${esc(vu.full_name||vu.email)}</h2>
