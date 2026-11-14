@@ -175,6 +175,18 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
  .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
  .side button.on{border-bottom-color:var(--acc)}
 }
+/* Graphiques des fiches agents */
+.chart .bar2{animation:rise .6s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:bottom}
+.chart .ml{fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.1s ease forwards}
+.chart .pt{stroke:var(--card);stroke-width:2;cursor:pointer}
+.chart .avg{stroke:var(--warn);stroke-dasharray:5 4;stroke-width:1.4}
+.chart .avgt{fill:var(--warn)!important;font-weight:600}
+.chart .yl{text-anchor:end}
+.chart .star{fill:var(--warn)!important;font-size:12px}
+.chart .tod{fill:var(--acc)!important;font-weight:700}
+.cgl{display:grid;grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:6px 14px;margin-top:10px;font-size:13px}
+.cgl div{display:flex;align-items:center;gap:8px}.cgl i{width:11px;height:11px;border-radius:3px;flex:none}
+.cgl span{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.cgl b{font-variant-numeric:tabular-nums}
 /* Fluidité : pas de flou ni d'animations coûteuses */
 header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
 .card{animation:none;transition:none}
@@ -891,10 +903,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
     <div class="k"><span>Commission nette</span><b>${fmt(co)}</b></div>
     <div class="k"><span>Commission nette (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>
   </div>
-  <div class="g2">
-    <div class="card"><h2>CA par jour</h2><p class="hint">Semaine affichée.</p>${bars(days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today})),'CA par jour')}</div>
-    <div class="card"><h2>Modèles les plus vendus</h2><p class="hint">Les 6 premiers de la semaine.</p>${hbars(top.map(x=>({l:x.n,v:x.ca,r:fmt(x.ca)})),'Aucune activité enregistrée cette semaine.')}</div>
-  </div>`;
+  ${agentCharts(vu,hist)}`;
 }
 
 // ---------- Sanctions : vue agent (ses sanctions par date) ----------
@@ -928,6 +937,71 @@ function sanCard(vu,ca,tiles){
       <td class="down"><b>${fmt(byDay[k].t)}</b></td><td>${fmt(byDay[k].t*AR_MULT)}</td></tr>`).join('')}
     <tfoot><tr><td>Total semaine</td><td></td><td class="down">${fmt(sw)}</td><td>${fmt(sw*AR_MULT)}</td></tr></tfoot></table>`
   :'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
+}
+
+// ---------- Graphiques d'un agent : diagramme journalier + courbes par modèle ----------
+function smoothPath(P,cl){
+  const n=P.length; let d=`M${P[0][0]},${P[0][1]}`;
+  for(let i=0;i<n-1;i++){
+    const p0=P[i-1]||P[i],p1=P[i],p2=P[i+1],p3=P[i+2]||p2;
+    d+=` C${p1[0]+(p2[0]-p0[0])/6},${cl(p1[1]+(p2[1]-p0[1])/6)} ${p2[0]-(p3[0]-p1[0])/6},${cl(p2[1]-(p3[1]-p1[1])/6)} ${p2[0]},${p2[1]}`;
+  }
+  return d;
+}
+function chartGrid(W,pl,pr,pt,ih,max){
+  return [0,1,2,3].map(k=>{ const y=pt+ih-ih*k/3;
+    return `<line class="grid" x1="${pl}" x2="${W-pr}" y1="${y}" y2="${y}" stroke-dasharray="${k?'3 4':'0'}"></line><text class="yl" x="${pl-6}" y="${y+4}">${fmt(Math.round(max*k/3))}</text>`; }).join('');
+}
+// Diagramme en barres dégradées : CA de chaque jour, moyenne en pointillés, meilleur jour étoilé
+function dailyChart(items,label){
+  const W=640,H=250,pl=46,pr=14,pt=28,pb=34,id='dc'+(++CH_ID);
+  const max=Math.max(...items.map(i=>i.v),1)*1.15, ih=H-pt-pb, bw=(W-pl-pr)/items.length;
+  const act=items.filter(i=>i.v>0), avg=act.length?act.reduce((s,i)=>s+i.v,0)/act.length:0, best=Math.max(...items.map(i=>i.v));
+  const bars=items.map((it,i)=>{
+    const h=it.v>0?Math.max(it.v/max*ih,3):3, x=pl+i*bw+bw*.17, w=bw*.66, y=pt+ih-h, cx=x+w/2;
+    return `<g><title>${esc(it.t||it.l)} : ${fmt(it.v)}</title>
+    <rect class="bar2" x="${x}" y="${y}" width="${w}" height="${h}" rx="6" style="fill:${it.v>0?`url(#${id})`:'var(--line)'};opacity:${it.cur||it.v===0?1:.85}"></rect>
+    ${it.v>0?`<text class="v" x="${cx}" y="${y-6}" text-anchor="middle">${fmt(it.v)}</text>`:''}
+    ${it.v>0&&it.v===best&&act.length>1?`<text class="star" x="${cx}" y="${y-19}" text-anchor="middle">★</text>`:''}
+    <text class="${it.cur?'tod':''}" x="${cx}" y="${H-12}" text-anchor="middle">${esc(it.l)}</text></g>`;
+  }).join('');
+  const ay=pt+ih-avg/max*ih;
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}"><defs>
+    <linearGradient id="${id}" x1="0" y1="0" x2="0" y2="1"><stop offset="0" style="stop-color:var(--acc)"></stop><stop offset="1" style="stop-color:var(--acc2)"></stop></linearGradient></defs>
+    ${chartGrid(W,pl,pr,pt,ih,max)}${bars}
+    ${avg>0?`<line class="avg" x1="${pl}" x2="${W-pr}" y1="${ay}" y2="${ay}"></line><text class="avgt" x="${W-pr}" y="${ay-5}" text-anchor="end">Moy. ${fmt(Math.round(avg))}</text>`:''}</svg>`;
+}
+// Courbes lissées : une courbe par modèle sur les jours de la semaine, avec légende et totaux
+function multiLine(labels,series,label){
+  const W=640,H=260,pl=46,pr=18,pt=22,pb=32, n=labels.length, ih=H-pt-pb, step=n>1?(W-pl-pr)/(n-1):0;
+  const max=Math.max(...series.flatMap(s=>s.vals),1)*1.12, cl=y=>Math.min(Math.max(y,pt),pt+ih);
+  const lines=series.map(s=>{
+    const P=s.vals.map((v,i)=>[pl+i*step,pt+ih-v/max*ih]);
+    const dots=P.map((p,i)=>`<circle class="pt" cx="${p[0]}" cy="${p[1]}" r="${s.vals[i]>0?4.2:2.5}" style="fill:${s.c}"><title>${esc(s.n)} — ${esc(labels[i].t)} : ${fmt(s.vals[i])}</title></circle>`).join('');
+    return `<path class="ml" pathLength="1" d="${smoothPath(P,cl)}" style="stroke:${s.c}"></path>${dots}`;
+  }).join('');
+  const xl=labels.map((l,i)=>`<text x="${pl+i*step}" y="${H-10}" text-anchor="middle">${esc(l.l)}</text>`).join('');
+  const lg=series.map(s=>`<div><i style="background:${s.c}"></i><span title="${esc(s.n)}">${esc(s.n)}</span><b>${fmt(s.vals.reduce((a,b)=>a+b,0))}</b></div>`).join('');
+  return `<svg class="chart" viewBox="0 0 ${W} ${H}" role="img" aria-label="${esc(label)}">${chartGrid(W,pl,pr,pt,ih,max)}${lines}${xl}</svg><div class="cgl">${lg}</div>`;
+}
+function agentCharts(vu,hist){
+  const from=iso(days[0]), to=iso(days[6]), today=iso(new Date());
+  const dayT={}, md={}, tot={}, names={};
+  hist.forEach(r=>{
+    if(r.day<from||r.day>to) return;
+    const ca=Number(r.ca||0), k=mkey(r.model_name);
+    dayT[r.day]=(dayT[r.day]||0)+ca;
+    md[k]=md[k]||{}; md[k][r.day]=(md[k][r.day]||0)+ca;
+    tot[k]=(tot[k]||0)+ca; names[k]=names[k]||String(r.model_name).trim();
+  });
+  const items=days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'}),t:dayShort(d),v:dayT[iso(d)]||0,cur:iso(d)===today}));
+  const top=Object.keys(tot).sort((a,b)=>tot[b]-tot[a]).slice(0,5);
+  const series=top.map((k,i)=>({n:names[k],c:PAL[i%PAL.length],vals:days.map(d=>(md[k]||{})[iso(d)]||0)}));
+  const labels=days.map(d=>({l:d.toLocaleDateString('fr-FR',{weekday:'short'})+' '+String(d.getDate()).padStart(2,'0'),t:dayShort(d)}));
+  return `<div class="g2">
+    <div class="card"><h2>Évolution journalière</h2><p class="hint">CA de chaque jour de la semaine · ★ meilleur jour · ligne pointillée = moyenne des jours actifs.</p>${dailyChart(items,'CA par jour')}</div>
+    <div class="card"><h2>CA par modèle</h2><p class="hint">Une courbe par modèle (les 5 premiers de la semaine), jour après jour.</p>${series.length?multiLine(labels,series,'CA par modèle et par jour'):'<p class="hint">Aucune activité enregistrée cette semaine.</p>'}</div>
+  </div>`;
 }
 
 // ---------- Bonus : vue agent (ses bonus par date) ----------
@@ -1324,7 +1398,7 @@ async function show(){
   }).join('')}
   <div class="tot"><div><span>CA total de la semaine</span><b id="tca">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
-  ${sanCard(vu,caW,true)}${bonCard(vu)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne,netW)}`;
+  ${agentCharts(vu,hist)}${sanCard(vu,caW,true)}${bonCard(vu)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne,netW)}`;
 
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
