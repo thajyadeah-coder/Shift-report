@@ -175,6 +175,19 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
  .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
  .side button.on{border-bottom-color:var(--acc)}
 }
+/* Encadré d'aide coloré pour les agents */
+.guide{background:color-mix(in srgb,var(--acc) 12%,var(--card));border:1px solid color-mix(in srgb,var(--acc) 38%,var(--line));border-radius:20px;padding:16px 20px;margin:12px 0 16px}
+.guide .gh{display:flex;align-items:center;gap:10px;margin-bottom:4px}
+.guide .gh i{font-style:normal;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
+.guide .gh b{font-size:15px}
+.guide ol{margin:8px 0 14px;padding-left:22px;line-height:1.75}
+.guide ol li::marker{color:var(--acc);font-weight:700}
+.guide .gs{display:flex;gap:8px;flex-wrap:wrap}
+.guide .gs span{border-radius:999px;padding:6px 14px;font-size:13px;background:var(--card);border:1px solid var(--line)}
+.guide .gs b{font-variant-numeric:tabular-nums}
+.guide .gs .gb{background:color-mix(in srgb,var(--acc) 18%,transparent);border-color:transparent;color:var(--acc)}
+.guide .gs .gx{background:color-mix(in srgb,var(--err) 14%,transparent);border-color:transparent;color:var(--err)}
+.guide .gs .gn{background:var(--acc);border-color:var(--acc);color:#fff}
 </style>
 </head>
 <body>
@@ -903,6 +916,47 @@ function sanCard(vu,ca,tiles){
   :'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
 }
 
+// ---------- Bonus : vue agent (ses bonus par date) ----------
+function bonCard(vu){
+  if(!BON_OK) return '';
+  const from=iso(days[0]), to=iso(days[6]);
+  const list=BON.filter(r=>r.user_id===vu.id&&r.day>=from&&r.day<=to);
+  const byDay={};
+  list.forEach(r=>{
+    const d=byDay[r.day]=byDay[r.day]||{t:0,why:[]};
+    d.t+=Number(r.amount||0); if(r.reason) d.why.push(r.reason);
+  });
+  const keys=Object.keys(byDay).sort();
+  const bw=list.reduce((s,r)=>s+Number(r.amount||0),0);
+  const own=vu.id===me.id;
+  return `<div class="card"><h2>${own?'Mes bonus':'Bonus — '+esc(vu.full_name||vu.email)}</h2>
+  <p class="hint">Bonus de la semaine affichée, regroupés par date. Ils sont ajoutés à la commission${own?' de la semaine':''}.</p>
+  ${keys.length?`<table data-nf><tr><th>Date</th><th>Motif</th><th>Total du jour</th><th>Total (Ar)</th></tr>
+    ${keys.map(k=>`<tr><td style="text-transform:capitalize">${dayName(new Date(k+'T00:00:00'))}</td>
+      <td style="white-space:normal">${byDay[k].why.length?esc(byDay[k].why.join(' ; ')):'<span style="color:var(--mute)">—</span>'}</td>
+      <td class="up"><b>+ ${fmt(byDay[k].t)}</b></td><td>${fmt(byDay[k].t*AR_MULT)}</td></tr>`).join('')}
+    <tfoot><tr><td>Total semaine</td><td></td><td class="up">+ ${fmt(bw)}</td><td>${fmt(bw*AR_MULT)}</td></tr></tfoot></table>`
+  :'<p class="hint" style="margin:0">Aucun bonus sur la semaine affichée.</p>'}</div>`;
+}
+
+// ---------- Encadré d'aide au remplissage (espace agent) ----------
+function agentGuide(vu,ca){
+  const from=iso(days[0]), to=iso(days[6]);
+  const sw=sanSum(vu.id,from,to), bw=bonSum(vu.id,from,to), net=netCo(ca*vu.commission,sw,bw);
+  return `<div class="guide"><div class="gh"><i>?</i><b>Comment remplir votre rapport</b></div>
+  <ol>
+    <li>Pour chaque jour travaillé, cliquez sur <b>« + Ajouter un modèle »</b>.</li>
+    <li>Choisissez le <b>modèle</b> dans la liste, puis saisissez votre <b>chiffre d'affaires</b>.</li>
+    <li>Ajoutez un <b>détail</b> si besoin (facultatif).</li>
+    <li>Cliquez sur <b>« Enregistrer la semaine »</b>. Un jour sans activité reste vide.</li>
+  </ol>
+  <div class="gs">
+    <span class="gn">Commission nette : <b>${fmt(net)}</b> · ${fmt(net*AR_MULT)} Ar</span>
+    ${BON_OK?`<span class="gb">Bonus : <b>+ ${fmt(bw)}</b></span>`:''}
+    ${SAN_OK?`<span class="gx">Sanctions : <b>− ${fmt(sw)}</b></span>`:''}
+  </div></div>`;
+}
+
 // ---------- Sanctions : espace admin ----------
 function sanAdminView(profiles,rows){
   if(!SAN_OK) return `<div class="card"><h2>Sanctions</h2><p class="msg">Table « sanctions » absente : exécutez le SQL fourni dans Supabase pour activer les sanctions.</p></div>`;
@@ -1142,7 +1196,7 @@ async function show(){
   if(admin && t==='bonus') bonTab=bonusAdminView(profiles,rows);
 
   let agent='';
-  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy,netW)+sanCard(vu,caW,false)+statsCard(vu,hist,hStart);
+  if(admin && t==='agent') agent=agentView(vu,profiles,hist,hStart,mmOne,lastBy,netW)+sanCard(vu,caW,false)+bonCard(vu)+statsCard(vu,hist,hStart);
 
   if(admin && t==='team'){
     // commission nette de la semaine affichée, par agent (pour le montant à verser)
@@ -1240,7 +1294,7 @@ async function show(){
   const report=(admin||t!=='reports')?'':`<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Rapport de shift — ${esc(vu.full_name||vu.email)}</h2>
   </div>
   <p class="hello">${vu.id===me.id?`${greet()} <b>${first}</b> Renseignez votre activité jour par jour.`:`Vous consultez le rapport de <b>${first}</b>.`}</p>
-  <p class="hint">Pour chaque jour, ajoutez une ligne par modèle : choisissez le modèle dans la liste, puis indiquez le chiffre d'affaires et un détail éventuel. Les totaux se calculent automatiquement. Laissez un jour vide en l'absence d'activité.</p>
+  ${agentGuide(vu,caW)}
   ${MODEL_NAMES.length?'':'<p class="msg">Aucun modèle disponible pour le moment : demandez à l\'administrateur d\'en ajouter dans l\'onglet Objectifs.</p>'}
   <div class="lh${HAS_DETAIL?'':' nd'}"><span>Modèle</span><span>Chiffre d'affaires</span>${HAS_DETAIL?'<span>Détail</span>':''}<span></span></div>
   ${days.map(d=>{
@@ -1251,7 +1305,7 @@ async function show(){
   }).join('')}
   <div class="tot"><div><span>CA total de la semaine</span><b id="tca">0</b></div></div>
   <div class="row" style="margin-top:12px"><button class="p" onclick="save('${vu.id}')">Enregistrer la semaine</button><span id="sm"></span></div></div>
-  ${sanCard(vu,caW,true)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne,netW)}`;
+  ${sanCard(vu,caW,true)}${bonCard(vu)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne,netW)}`;
 
   lastRefresh=new Date();
   $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
