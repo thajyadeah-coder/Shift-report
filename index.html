@@ -175,6 +175,18 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
  .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
  .side button.on{border-bottom-color:var(--acc)}
 }
+/* Deux valeurs (€ et Ar) dans deux cases séparées */
+.cx{display:inline-block;border-radius:10px;padding:4px 11px;font-weight:650;font-size:13px;font-style:normal;white-space:nowrap;font-variant-numeric:tabular-nums}
+.cx.e{background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--acc)}
+.cx.a{background:color-mix(in srgb,var(--warn) 17%,transparent);color:var(--warn)}
+.tiles .cxs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.hb2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:11px 0}
+.hb2 .n{min-width:48px;font-size:14px}
+.hb2 i{display:block;height:10px;border-radius:5px;background:var(--line);flex:1;min-width:80px}
+.hb2 i u{display:block;height:100%;border-radius:5px;background:linear-gradient(90deg,var(--acc),var(--acc2))}
+.fx{border-left:4px solid var(--warn)}
+.fx .ex{margin-top:10px;display:inline-block;border-radius:12px;padding:8px 14px;background:color-mix(in srgb,var(--warn) 12%,transparent);font-size:13px}
+.guide .gs .ga{background:color-mix(in srgb,var(--warn) 18%,transparent);border-color:transparent;color:var(--warn)}
 /* Graphiques des fiches agents */
 .chart .bar2{animation:rise .6s cubic-bezier(.2,.7,.2,1) both;transform-box:fill-box;transform-origin:bottom}
 .chart .ml{fill:none;stroke-width:2.6;stroke-linecap:round;stroke-linejoin:round;stroke-dasharray:1;stroke-dashoffset:1;animation:draw 1.1s ease forwards}
@@ -223,7 +235,8 @@ header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
 // ===== Configuration =====
 const SUPABASE_URL = 'https://gnhvvhjnfsetopbekqcp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
-const AR_MULT = 3900;
+let AR_MULT = 3900; // cours d'échange : 1 € = AR_MULT Ar (modifiable par l'admin, enregistré dans Supabase)
+let FX_OK = true, FX_AT = '', fxNote = '';
 const CRYPTO_RATE = 1; // 1 unité de commission = 1 USDT (à adapter si besoin)
 // =========================
 // ---------- Apparence : mode clair / sombre / auto et couleur d'accent (mémorisés sur l'appareil) ----------
@@ -769,6 +782,38 @@ const weekItems = weeks => weeks.map((w,i)=>({
   t:'Semaine du '+w.d.toLocaleDateString('fr-FR')
 }));
 
+// Barres de classement avec deux cases séparées : valeur en € et valeur en Ar
+function hb2(items,empty){
+  if(!items.length) return `<p class="hint">${empty}</p>`;
+  const max=Math.max(...items.map(i=>i.v),1);
+  return items.map(it=>`<div class="hb2"><span class="n">${esc(it.l)}</span><i><u style="width:${Math.max(it.v/max*100,2)}%"></u></i><span class="cx e">${fmt(it.v)} €</span><span class="cx a">${fmt(it.v*AR_MULT)} Ar</span></div>`).join('');
+}
+
+// ---------- Cours d'échange € → Ar (admin, en haut de l'accueil) ----------
+function fxCard(){
+  const ex=50*AR_MULT;
+  const at=FX_AT?' · mis à jour le '+new Date(FX_AT).toLocaleDateString('fr-FR'):'';
+  const html=`<div class="card mm fx"><div class="row" style="justify-content:space-between;align-items:flex-end">
+    <div><h2 style="margin:0">Cours d'échange € → Ar</h2>
+    <p class="hint" style="margin:4px 0 0">Commission en Ar = CA × taux × cours. Le cours s'applique à toute la plateforme (admin et agents)${at}.</p></div>
+    <div class="row" style="align-items:flex-end"><label>1 € = (Ar)<input id="fx_v" inputmode="decimal" value="${AR_MULT}" style="width:130px"></label>
+    <button class="p" onclick="saveFx()">Enregistrer le cours</button></div></div>
+  <span class="ex">Exemple : CA 1 000 × 5 % = 50 € → 50 × ${fmt(AR_MULT)} = <b>${fmt(ex)} Ar</b></span>
+  ${FX_OK?'':'<p class="msg">Impossible de lire le cours enregistré (table « settings »). Le cours par défaut est utilisé : exécutez le SQL fourni.</p>'}
+  <div id="fx_msg" class="${fxNote?'ok':'msg'}">${esc(fxNote)}</div></div>`;
+  fxNote='';
+  return html;
+}
+async function saveFx(){
+  const raw=$('fx_v').value.trim(), v=num(raw), m=$('fx_msg');
+  m.className='msg';
+  if(!raw||!Number.isFinite(v)||v<=0) return m.textContent='Indiquez un cours valide (nombre positif).';
+  const {error}=await sb.from('settings').upsert({key:'fx_rate',amount:v,start_day:iso(new Date()),updated_at:new Date().toISOString()},{onConflict:'key'});
+  if(error) return m.textContent='Erreur : '+error.message;
+  fxNote='Cours enregistré : 1 € = '+fmt(v)+' Ar.';
+  show();
+}
+
 // ---------- Analyse par taux de commission (admin) : un taux à choisir dans une liste, sans addition entre les taux ----------
 let RATE_SEL = null;
 function pickRate(v){ RATE_SEL = v==='' ? null : Number(v); show(); }
@@ -801,7 +846,7 @@ function rateCard(profiles,rows){
       <div class="k"><span>Commission brute</span><b>${fmt(g.br)}</b></div>
       <div class="k"><span>Bonus</span><b class="${g.bn>0?'up':''}">+ ${fmt(g.bn)}</b></div>
       <div class="s"><span>Sanctions</span><b class="${g.sn>0?'down':''}">− ${fmt(g.sn)}</b></div>
-      <div class="k"><span>Commission nette ${label(g)}</span><b>${fmt(g.net)}</b><span>${fmt(g.net*AR_MULT)} Ar · ${fmt(g.net*CRYPTO_RATE)} USDT</span></div>
+      <div class="k"><span>Commission nette ${label(g)}</span><b>${fmt(g.net)}</b><span class="cxs"><em class="cx e">${fmt(g.net)} €</em><em class="cx a">${fmt(g.net*AR_MULT)} Ar</em></span></div>
     </div>
     <table data-fc="1"><tr><th>Agent</th><th>CA</th><th>Commission brute</th><th>Bonus</th><th>Sanctions</th><th>Commission nette</th><th>Nette (Ar)</th></tr>
     ${g.list.map(d=>`<tr><td><a href="#" onclick="pick('${d.p.id}');return false">${esc(d.p.full_name||d.p.email)}</a></td>
@@ -814,7 +859,7 @@ function rateCard(profiles,rows){
     <label class="mm" style="display:flex;flex-direction:column;gap:4px;color:var(--mute);font-size:13px">Taux à afficher<select class="sel" onchange="pickRate(this.value)" aria-label="Choisir un taux">${opts}</select></label></div></div>
   <div class="g2">
     <div class="card"><h2>CA par taux</h2><p class="hint">Part de chaque taux dans le CA de la semaine.</p>${donut(groups.map(g=>({l:label(g),v:g.ca})),'CA')}</div>
-    <div class="card"><h2>Commission nette par taux</h2><p class="hint">Montant net à verser pour chaque taux.</p>${hbars(groups.map(g=>({l:label(g),v:g.net,r:fmt(g.net)+' · '+fmt(g.net*AR_MULT)+' Ar'})),'Aucune commission cette semaine.')}</div>
+    <div class="card"><h2>Commission nette par taux</h2><p class="hint">Montant net à verser pour chaque taux.</p>${hb2(groups.map(g=>({l:label(g),v:g.net})),'Aucune commission cette semaine.')}</div>
   </div>${cards}`;
 }
 
@@ -1043,7 +1088,8 @@ function agentGuide(vu,ca){
     <li>En bas de la page, renseignez votre <b>mode de paiement</b> (Mobile Money ou crypto) pour recevoir votre commission.</li>
   </ol>
   <div class="gs">
-    <span class="gn">Commission nette : <b>${fmt(net)}</b> · ${fmt(net*AR_MULT)} Ar</span>
+    <span class="gn">Commission nette : <b>${fmt(net)} €</b></span>
+    <span class="ga">En Ar : <b>${fmt(net*AR_MULT)} Ar</b></span>
     ${BON_OK?`<span class="gb">Bonus : <b>+ ${fmt(bw)}</b></span>`:''}
     ${SAN_OK?`<span class="gx">Sanctions : <b>− ${fmt(sw)}</b></span>`:''}
   </div></details>`;
@@ -1194,6 +1240,7 @@ async function show(){
   let sq=sb.from('sanctions').select('id,user_id,day,amount,reason').gte('day',iso(hStart)).lte('day',to).order('day');
   if(!admin) sq=sq.eq('user_id',me.id);
   const P_san=Promise.resolve(sq);
+  const P_fx=Promise.resolve(sb.from('settings').select('amount,updated_at').eq('key','fx_rate').maybeSingle());
   let bq=sb.from('bonuses').select('id,user_id,day,amount,reason').gte('day',iso(hStart)).lte('day',to).order('day');
   if(!admin) bq=bq.eq('user_id',me.id);
   const P_bon=Promise.resolve(bq);
@@ -1232,6 +1279,7 @@ async function show(){
     else SAN=(sr.data||[]).map(r=>({...r,amount:Number(r.amount||0)}));
   }
 
+  { const fx=await P_fx; FX_OK=!fx.error; if(fx.data&&Number(fx.data.amount)>0){ AR_MULT=Number(fx.data.amount); FX_AT=fx.data.updated_at||''; } }
   BON=[]; BON_OK=true;
   {
     const br0=await P_bon;
@@ -1282,7 +1330,7 @@ async function show(){
   }
   let dash='', team='', access='', perf='', sanTab='', bonTab='', comm='';
   if(admin && t==='perf') perf=perfView(profiles,rows,goals,vu,objData(goals||[],rows,tr,objD));
-  if(admin && t==='dash') dash=(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
+  if(admin && t==='dash') dash=fxCard()+(cu?cuProgress(cu,cuCA):'')+objSummary(goals,rows,tr,objD)+dashCard(profiles,rows,hStart);
   if(admin && t==='comm') comm=rateCard(profiles,rows);
   if(admin && t==='sanctions') sanTab=sanAdminView(profiles,rows);
   if(admin && t==='bonus') bonTab=bonusAdminView(profiles,rows);
@@ -1557,7 +1605,7 @@ function mmCard(vu,m,net){
   <p class="hint">Choisissez comment recevoir votre commission : Mobile Money (numéro) ou Crypto (adresse de portefeuille). Pour la crypto, vérifiez bien le réseau et l'adresse : un envoi à une mauvaise adresse est irréversible.</p>
   <div class="tiles" style="margin-bottom:10px">
     <div class="k"><span>Commission nette de la semaine</span><b>${fmt(net)}</b></div>
-    <div class="k"><span>Montant à recevoir${m.operator?' · '+esc(m.operator):''}</span><b>${m.number?payAmt(m,net):'—'}</b><span>${m.number?(cr?'1 unité de commission = '+CRYPTO_RATE+' USDT':'1 unité de commission = '+fmt(AR_MULT)+' Ar'):'Renseignez un mode de paiement'}</span></div>
+    <div class="k"><span>Montant à recevoir${m.operator?' · '+esc(m.operator):''}</span><b>${m.number?payAmt(m,net):'—'}</b><span>${m.number?(cr?'1 € = '+CRYPTO_RATE+' USDT':'1 € = '+fmt(AR_MULT)+' Ar'):'Renseignez un mode de paiement'}</span></div>
   </div>
   <div class="row" style="align-items:flex-end">
     <label>Mode de paiement<select id="mm_op"><option value="">— Choisir —</option>${ops.map(o=>`<option ${o===m.operator?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
