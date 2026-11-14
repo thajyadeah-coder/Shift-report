@@ -133,7 +133,7 @@ const $=s=>document.querySelector(s), el=(h)=>{const d=document.createElement('d
 const splash=el(`<div id="pro-splash"><div class="in"><div class="lg">SR</div><h1>Shift Report</h1><p>Chargement de votre espace…</p><div class="tr"><u></u></div></div></div>`);
 document.body.appendChild(splash);
 let splashT=Date.now();
-const hideSplash=()=>{const w=Math.max(0,700-(Date.now()-splashT));setTimeout(()=>{splash.classList.add('out');setTimeout(()=>splash.remove(),600);},w);};
+const hideSplash=()=>{const w=Math.max(0,250-(Date.now()-splashT));setTimeout(()=>{splash.classList.add('out');setTimeout(()=>splash.remove(),600);},w);};
 setTimeout(()=>splash.isConnected&&hideSplash(),6000);
 
 /* ---------- Barre de chargement + état occupé ---------- */
