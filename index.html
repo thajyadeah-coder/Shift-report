@@ -175,7 +175,21 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
  .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
  .side button.on{border-bottom-color:var(--acc)}
 }
+/* Fluidité : pas de flou ni d'animations coûteuses */
+header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
+.card{animation:none;transition:none}
+.tiles div,.day,button,input,select{transition:none}
+/* Chaque jour a son propre cadre coloré pour éviter de remplir la mauvaise date */
+.day{border:2px solid color-mix(in srgb,var(--dc,var(--acc)) 45%,var(--line));border-left-width:8px;border-radius:14px;background:color-mix(in srgb,var(--dc,var(--acc)) 5%,var(--card))}
+.day:hover{border-color:var(--dc,var(--acc))}
+.day.today{box-shadow:0 0 0 3px color-mix(in srgb,var(--dc,var(--acc)) 30%,transparent);border-color:var(--dc,var(--acc))}
+.day .dtag{background:var(--dc,var(--acc));color:#fff;padding:3px 14px;border-radius:999px;font-size:13.5px;font-weight:650}
+.day .tbd{margin-left:8px;font-size:11px;font-weight:700;color:var(--dc,var(--acc));border:1.5px solid var(--dc,var(--acc));border-radius:999px;padding:1px 9px;text-transform:uppercase;letter-spacing:.04em}
+.day>button{border-color:color-mix(in srgb,var(--dc,var(--acc)) 55%,var(--line));color:var(--dc,var(--acc));font-weight:600}
 /* Encadré d'aide coloré pour les agents */
+.guide summary{cursor:pointer;list-style:none;display:flex;align-items:center;gap:10px}
+.guide summary::-webkit-details-marker{display:none}
+.guide summary .gt{margin-left:auto;font-size:12px;color:var(--mute)}
 .guide{background:color-mix(in srgb,var(--acc) 12%,var(--card));border:1px solid color-mix(in srgb,var(--acc) 38%,var(--line));border-radius:20px;padding:16px 20px;margin:12px 0 16px}
 .guide .gh{display:flex;align-items:center;gap:10px;margin-bottom:4px}
 .guide .gh i{font-style:normal;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none}
@@ -943,18 +957,22 @@ function bonCard(vu){
 function agentGuide(vu,ca){
   const from=iso(days[0]), to=iso(days[6]);
   const sw=sanSum(vu.id,from,to), bw=bonSum(vu.id,from,to), net=netCo(ca*vu.commission,sw,bw);
-  return `<div class="guide"><div class="gh"><i>?</i><b>Comment remplir votre rapport</b></div>
+  return `<details class="guide" open><summary><i style="font-style:normal;width:28px;height:28px;border-radius:50%;background:var(--acc);color:#fff;display:grid;place-items:center;font-weight:700;font-size:14px;flex:none">?</i><b style="font-size:15px">Comment remplir votre rapport</b><span class="gt">Afficher / masquer</span></summary>
   <ol>
-    <li>Pour chaque jour travaillé, cliquez sur <b>« + Ajouter un modèle »</b>.</li>
-    <li>Choisissez le <b>modèle</b> dans la liste, puis saisissez votre <b>chiffre d'affaires</b>.</li>
-    <li>Ajoutez un <b>détail</b> si besoin (facultatif).</li>
-    <li>Cliquez sur <b>« Enregistrer la semaine »</b>. Un jour sans activité reste vide.</li>
+    <li><b>Choisissez la semaine de production</b> en cliquant simplement sur les petites flèches <b>‹ ›</b> en haut de la page.</li>
+    <li>Dans la case du jour concerné, cliquez sur <b>« + Ajouter un modèle »</b>.</li>
+    <li><b>Sélectionnez le modèle</b> dans la liste déroulante.</li>
+    <li>Dans la case <b>CA</b>, saisissez votre <b>production</b> (chiffre d'affaires).</li>
+    <li>Dans la case <b>Détail</b>, précisez si vous faites un <b>full shift</b> (facultatif).</li>
+    <li>Un autre modèle le même jour ? Cliquez à nouveau sur <b>« + Ajouter un modèle »</b>.</li>
+    <li>Cliquez sur <b>« Enregistrer la semaine »</b> : vous pouvez enregistrer <b>jour par jour</b>, à la fin de chaque shift.</li>
+    <li>En bas de la page, renseignez votre <b>mode de paiement</b> (Mobile Money ou crypto) pour recevoir votre commission.</li>
   </ol>
   <div class="gs">
     <span class="gn">Commission nette : <b>${fmt(net)}</b> · ${fmt(net*AR_MULT)} Ar</span>
     ${BON_OK?`<span class="gb">Bonus : <b>+ ${fmt(bw)}</b></span>`:''}
     ${SAN_OK?`<span class="gx">Sanctions : <b>− ${fmt(sw)}</b></span>`:''}
-  </div></div>`;
+  </div></details>`;
 }
 
 // ---------- Sanctions : espace admin ----------
@@ -1299,7 +1317,8 @@ async function show(){
   <div class="lh${HAS_DETAIL?'':' nd'}"><span>Modèle</span><span>Chiffre d'affaires</span>${HAS_DETAIL?'<span>Détail</span>':''}<span></span></div>
   ${days.map(d=>{
     const k=iso(d), r=mine[k]||{models:[]};
-    return `<div class="day"><div class="dh"><span>${dayName(d)}</span><span>CA du jour : <b id="dayca_${k}">0</b></span></div>
+    const dcol=['#2563eb','#7c3aed','#db2777','#ea580c','#ca8a04','#16a34a','#0891b2'][(d.getDay()+6)%7], isT=k===iso(new Date());
+    return `<div class="day${isT?' today':''}" style="--dc:${dcol}"><div class="dh"><span><span class="dtag">${dayName(d)}</span>${isT?'<span class="tbd">Aujourd\'hui</span>':''}</span><span>CA du jour : <b id="dayca_${k}">0</b></span></div>
       <div id="ln_${k}">${r.models.map(lineHtml).join('')}</div>
       <button type="button" onclick="addLine('${k}')">+ Ajouter un modèle</button></div>`;
   }).join('')}
@@ -1571,7 +1590,7 @@ async function createAgent(){
 // Actualisation automatique (suivi des objectifs en quasi temps réel)
 setInterval(()=>{
   const a=document.activeElement;
-  if(me && me.role==='admin' && (tab==='dash'||tab==='goals'||tab==='perf') && !recovering && !(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) show();
+  if(!document.hidden && me && me.role==='admin' && (tab==='dash'||tab==='goals'||tab==='perf') && !recovering && !(a && /INPUT|SELECT|TEXTAREA/.test(a.tagName))) show();
 },30000);
 
 start();
