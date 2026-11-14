@@ -1147,7 +1147,7 @@ async function show(){
     sanctions:['Sanctions','Saisie des sanctions et récapitulatif des commissions nettes.'],
     access:['Accès et identifiants','Identifiants de connexion et réinitialisation des mots de passe.']};
   const pg=PAGES[t]||['',''];
-  const side=admin?`<aside class="side" aria-label="Navigation">${NAV.map(([h,l])=>`<h4>${h}</h4>`+l.map(([k,n])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${n}</button>`).join('')).join('')}</aside>`:'';
+  const side=admin?`<aside class="side" aria-label="Navigation">${NAV.map(([h,l])=>`<h4>${h}</h4>`+l.map(([k,n])=>`<button class="${t===k?'on':''}" onclick="setTab('${k}')">${n}</button>`).join('')).join('')}<h4>Outils</h4><button type="button" onclick="window.open('ia.html','_blank')">Export pour IA ↗</button></aside>`:'';
   const head=admin?`<div class="pgh"><div><h2>${pg[0]}</h2><p>${pg[1]}</p></div><div class="row"><input id="gq" type="search" placeholder="Rechercher un agent ou un modèle" aria-label="Recherche rapide" value="${esc(SEARCH)}" oninput="setSearch(this.value)" style="min-width:240px"><span id="gqc" class="hint" style="margin:0"></span></div></div>`:'';
 
   const weekBar=(t==='access')?'':`<div class="card"><div class="row">
