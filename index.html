@@ -896,7 +896,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
   <div class="nav" id="ag_list" style="margin:10px 0 0">${profiles.filter(p=>p.role!=='admin').sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr')).map(p=>`<button type="button" class="${p.id===vu.id?'on':''}" data-id="${p.id}" data-n="${esc(nrm((p.full_name||'')+' '+(p.email||'')))}" onclick="pick('${p.id}')">${esc(p.full_name||p.email)}</button>`).join('')}</div></div>
   <div class="tiles">
     <div class="k"><span>CA de la semaine</span><b>${fmt(ca)}</b></div>
-    <div class="k"><span>Taux de commission</span><b>${pct(vu.commission)}</b></div>
+    <div class="k"><span>Taux de commission</span><select style="margin-top:4px;font-weight:650;width:100%" onchange="upd('${vu.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(vu.commission))}</select><span>Modifiable ici</span></div>
     <div class="k"><span>Commission brute</span><b>${fmt(brute)}</b></div>
     ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     ${SAN_OK?`<div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>`:''}
@@ -1293,13 +1293,13 @@ async function show(){
   if(admin && t==='team'){
     // commission nette de la semaine affichée, par agent (pour le montant à verser)
     const netOf=p=>{ const ca=rows.reduce((s,r)=>r.user_id===p.id&&r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); return netCo(ca*p.commission,sanSum(p.id,from,to),bonSum(p.id,from,to)); };
-    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Le montant à verser est la commission nette de la semaine affichée, dans la monnaie du mode de paiement choisi (Ariary pour Mobile Money, USDT pour la crypto). Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Paiement</th><th>À verser (semaine)</th><th>Taux de commission</th><th>Rôle</th></tr>
+    team=`<div class="card"><h2>Gestion de l'équipe</h2><p class="hint">Un agent est « Actif » s'il a saisi son CA au cours des 7 derniers jours. Le montant à verser est la commission nette de la semaine affichée, dans la monnaie du mode de paiement choisi (Ariary pour Mobile Money, USDT pour la crypto). Le taux de commission se modifie dans la fiche de l'agent (clic sur son nom ou sur « Modifier »). Identifiants et mots de passe : voir l'onglet Accès.</p><table><tr><th>Agent</th><th>Email</th><th>Statut</th><th>Paiement</th><th>À verser (semaine)</th><th>Taux de commission</th><th>Rôle</th></tr>
     ${profiles.map(p=>{
       const m=mmBy[p.id];
       return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||'(sans nom)')}</a></td><td>${esc(p.email)}</td><td>${badge(lastBy[p.id])}</td>
       <td>${m&&m.number?(isCrypto(m.operator)?'<span class="bd">Crypto</span> ':'')+esc(m.number.length>22?m.number.slice(0,10)+'…'+m.number.slice(-6):m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
       <td><b>${m&&m.number?payAmt(m,netOf(p)):'—'}</b></td>
-      <td><select onchange="upd('${p.id}',{commission:(+this.value||0)/100})" aria-label="Taux de commission">${rateOpts(pv(p.commission))}</select></td>
+      <td><b>${pct(p.commission)}</b> <a href="#" onclick="pick('${p.id}');return false" title="Le taux se modifie dans la fiche agent">Modifier</a></td>
       <td><select ${p.id===me.id?'disabled title="Vous ne pouvez pas modifier votre propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
       <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`;
     }).join('')}</table>
