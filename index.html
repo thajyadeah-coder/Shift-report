@@ -970,6 +970,23 @@ async function show(){
   const hStart=new Date(weekStart);
   hStart.setDate(hStart.getDate()-(STAT_WEEKS-1)*7);
   let profiles=[me], rows=[], lastBy={};
+  const todayIso=iso(new Date());
+  const objD=(objDay&&objDay>=from&&objDay<=to)?objDay:(todayIso>=from&&todayIso<=to)?todayIso:(todayIso<from?from:to);
+  // Requêtes indépendantes lancées en même temps (au lieu d'une après l'autre) : navigation plus rapide
+  let sq=sb.from('sanctions').select('id,user_id,day,amount,reason').gte('day',iso(hStart)).lte('day',to).order('day');
+  if(!admin) sq=sq.eq('user_id',me.id);
+  const P_san=Promise.resolve(sq);
+  const P_md=Promise.resolve(sb.from('models').select('*').order('name'));
+  const P_tr=admin ? allEntries(objD,objD).catch(()=>[]) : Promise.resolve([]);
+  const P_ag=(admin&&(t==='dash'||t==='goals'||t==='perf')) ? (()=>{ const td0=iso(new Date()), lo=td0<from?td0:from, hi=td0>to?td0:to; return Promise.resolve(sb.from('agency_goals').select('day,amount').gte('day',lo).lte('day',hi)); })() : null;
+  const P_cu=(admin&&(t==='dash'||t==='goals')) ? (async()=>{
+    const c=await sb.from('settings').select('*').eq('key','catchup').maybeSingle();
+    if(c.error) return {ok:false,cu:null,ca:0};
+    if(!c.data) return {ok:true,cu:null,ca:0};
+    const rr=await allEntries(c.data.start_day,iso(new Date())).catch(()=>[]);
+    return {ok:true,cu:c.data,ca:rr.reduce((s,r)=>s+Number(r.ca||0),0)};
+  })() : null;
+  const P_mm=admin ? mmApi('GET').catch(()=>[]) : mmApi('GET','?user_id='+encodeURIComponent(me.id)).catch(()=>null);
 
   try{
     if(admin){
@@ -989,40 +1006,21 @@ async function show(){
   // Sanctions de la période (8 semaines jusqu'à la semaine affichée) : toutes pour l'admin, uniquement les siennes pour l'agent
   SAN=[]; SAN_OK=true;
   {
-    let sq=sb.from('sanctions').select('id,user_id,day,amount,reason')
-      .gte('day',iso(hStart)).lte('day',to).order('day');
-    if(!admin) sq=sq.eq('user_id',me.id);
-    const sr=await sq;
+    const sr=await P_san;
     if(sr.error) SAN_OK=false;
     else SAN=(sr.data||[]).map(r=>({...r,amount:Number(r.amount||0)}));
   }
 
-  // Jour de référence des « CA d'aujourd'hui » : toujours un jour de la semaine affichée
-  // (date choisie, sinon aujourd'hui si la semaine le contient, sinon le 1er jour d'une semaine à venir / le dernier d'une semaine passée)
-  const todayIso=iso(new Date());
-  const objD=(objDay&&objDay>=from&&objDay<=to)?objDay:(todayIso>=from&&todayIso<=to)?todayIso:(todayIso<from?from:to);
-  const [md,tr]=await Promise.all([
-    sb.from('models').select('*').order('name'),
-    admin ? allEntries(objD,objD).catch(()=>[]) : Promise.resolve([])
-  ]);
+  const [md,tr]=await Promise.all([P_md,P_tr]);
   const goals=md.error?null:(md.data||[]);
   MODEL_NAMES=(goals||[]).map(g=>String(g.name).trim()).filter(Boolean).sort((a,b)=>a.localeCompare(b,'fr'));
   agMap={}; agOk=true;
   if(admin && (t==='dash'||t==='goals'||t==='perf')){
-    const td0=iso(new Date()), lo=td0<from?td0:from, hi=td0>to?td0:to;
-    const a=await sb.from('agency_goals').select('day,amount').gte('day',lo).lte('day',hi);
+    const a=await P_ag;
     if(a.error) agOk=false; else (a.data||[]).forEach(r=>{ agMap[r.day]=Number(r.amount); });
   }
   let cu=null, cuOk=true, cuCA=0;
-  if(admin && (t==='dash'||t==='goals')){
-    const c=await sb.from('settings').select('*').eq('key','catchup').maybeSingle();
-    if(c.error) cuOk=false;
-    else if(c.data){
-      cu=c.data;
-      const rr=await allEntries(cu.start_day,iso(new Date())).catch(()=>[]);
-      cuCA=rr.reduce((s,r)=>s+Number(r.ca||0),0);
-    }
-  }
+  if(P_cu){ const r=await P_cu; cu=r.cu; cuOk=r.ok; cuCA=r.ca; }
   if(!admin || !profiles.find(p=>p.id===viewId)) viewId=me.id;
   if(admin&&(t==='agent'||t==='perf')){
     const ags=profiles.filter(p=>p.role!=='admin');
@@ -1033,10 +1031,9 @@ async function show(){
   const caW=hist.reduce((s,r)=>r.day>=from&&r.day<=to?s+Number(r.ca||0):s,0); // CA de la semaine affichée pour l'agent consulté
   const netW=netCo(caW*vu.commission,sanSum(vu.id,from,to)); // commission nette de la semaine = montant à verser
 
-  const [mmAll,mmOne]=await Promise.all([
-    admin ? mmApi('GET').catch(()=>[]) : Promise.resolve([]),
-    mmApi('GET','?user_id='+encodeURIComponent(vu.id)).catch(()=>null)
-  ]);
+  const mmRes=await P_mm;
+  const mmAll=admin?(mmRes||[]):[];
+  const mmOne=admin?((mmRes||[]).find(x=>x.userId===vu.id)||null):mmRes;
   const mmBy={};
   (mmAll||[]).forEach(m=>{mmBy[m.userId]=m;});
 
