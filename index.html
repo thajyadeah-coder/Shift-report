@@ -175,6 +175,10 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
  .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
  .side button.on{border-bottom-color:var(--acc)}
 }
+/* Pied de page / copyright */
+.cp{max-width:1360px;margin:8px auto 0;padding:18px 16px 26px;text-align:center;color:var(--mute);font-size:12.5px;border-top:1px solid var(--line)}
+.cp a{color:var(--acc);text-decoration:none;font-weight:600}.cp a:hover{text-decoration:underline}
+.cp b{color:var(--ink);font-weight:650}
 /* Deux valeurs (€ et Ar) dans deux cases séparées */
 .cx{display:inline-block;border-radius:10px;padding:4px 11px;font-weight:650;font-size:13px;font-style:normal;white-space:nowrap;font-variant-numeric:tabular-nums}
 .cx.e{background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--acc)}
@@ -230,6 +234,8 @@ header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
 </head>
 <body>
 <main id="app"></main>
+<footer class="cp">© <span id="cp_y">2026</span> <b>Thajy Adeah</b> · Tous droits réservés · <a href="mailto:thajyaddeah10@gmail.com">thajyaddeah10@gmail.com</a></footer>
+<script>document.getElementById("cp_y").textContent=new Date().getFullYear();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ===== Configuration =====
