@@ -234,8 +234,6 @@ header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
 </head>
 <body>
 <main id="app"></main>
-<footer class="cp">© <span id="cp_y">2026</span> <b>Thajy Adeah</b> · Tous droits réservés · <a href="mailto:thajyaddeah10@gmail.com">thajyaddeah10@gmail.com</a></footer>
-<script>document.getElementById("cp_y").textContent=new Date().getFullYear();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ===== Configuration =====
@@ -690,7 +688,7 @@ async function signup(){
   if(data.user && data.user.identities && data.user.identities.length===0)
     return am.textContent = 'Cette adresse email est déjà utilisée. Veuillez vous connecter.';
   if(!data.session) authView('<span class="ok">Compte créé. Confirmez votre adresse email via le lien reçu, puis connectez-vous.</span>','login');
-  else start();
+  else { await sb.from('profiles').update({commission:0.08}).eq('id',data.user.id); start(); }
 }
 
 async function logout(){
@@ -976,7 +974,7 @@ function sanCard(vu,ca,tiles){
   return `<div class="card"><h2>${own?'Mes sanctions':'Sanctions — '+esc(vu.full_name||vu.email)}</h2>
   <p class="hint">Sanctions de la semaine affichée, regroupées par date. Le montant total des sanctions est déduit de la commission${own?' de la semaine':''}.</p>
   ${tiles?`<div class="tiles">
-    <div class="k"><span>Commission brute (${fmt(ca)} × ${pct(vu.commission)})</span><b>${fmt(brute)}</b></div>
+    <div class="k"><span>Commission brute</span><b>${fmt(brute)}</b></div>
     ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     <div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>
     <div class="k"><span>Commission nette</span><b>${fmt(net)}</b><span>${fmt(net*AR_MULT)} Ar</span></div>
@@ -1359,7 +1357,7 @@ async function show(){
     }).join('')}</table>
     <h2 style="margin-top:18px">Ajouter un agent</h2><div class="row">
       <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Adresse email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 caractères min.)">
-      <select id="ng_tx" title="Taux de commission" aria-label="Taux de commission">${rateOpts(5)}</select><button class="p" onclick="createAgent()">Créer le compte</button></div>
+      <select id="ng_tx" title="Taux de commission" aria-label="Taux de commission">${rateOpts(8)}</select><button class="p" onclick="createAgent()">Créer le compte</button></div>
     <div id="ng_msg" class="ok">${esc(notice)}</div></div>`;
     notice='';
   }
@@ -1689,7 +1687,7 @@ async function upd(id,patch){
 
 async function createAgent(){
   const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value;
-  const tx=(+$('ng_tx').value||5)/100, m=$('ng_msg');
+  const tx=(+$('ng_tx').value||8)/100, m=$('ng_msg');
   m.className='msg';
   if(!(tx>=0&&tx<=1)){
     m.textContent='Le taux doit être un pourcentage compris entre 0 et 100.';
