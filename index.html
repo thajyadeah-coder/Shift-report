@@ -343,6 +343,10 @@ function pickFirstAgent(){
   if(b) pick(b.dataset.id);
 }
 
+// Agent payé en crypto : ses montants restent en USDT, on ne lui montre pas d'équivalent en Ar
+let AGCRYPTO=false;
+const arTd=v=>AGCRYPTO?'':'<td>'+fmt(v*AR_MULT)+'</td>';
+const arTh=()=>AGCRYPTO?'':'<th>Total (Ar)</th>';
 const mmRow = r => r && ({userId:r.user_id,operator:r.operator,number:r.number,holder:r.holder,updatedAt:r.updated_at});
 
 async function mmApi(method, q, body){
@@ -977,14 +981,14 @@ function sanCard(vu,ca,tiles){
     <div class="k"><span>Commission brute</span><b>${fmt(brute)}</b></div>
     ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     <div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>
-    <div class="k"><span>Commission nette</span><b>${fmt(net)}</b><span>${fmt(net*AR_MULT)} Ar</span></div>
+    <div class="k"><span>Commission nette</span><b>${fmt(net)}</b>${AGCRYPTO?'':`<span>${fmt(net*AR_MULT)} Ar</span>`}</div>
     <div class="s"><span>Sanctions cumulées (${STAT_WEEKS} semaines)</span><b>${fmt(cumul)}</b></div>
   </div>`:''}
-  ${keys.length?`<table data-nf><tr><th>Date</th><th>Motif</th><th>Total du jour</th><th>Total (Ar)</th></tr>
+  ${keys.length?`<table data-nf><tr><th>Date</th><th>Motif</th><th>Total du jour</th>${arTh()}</tr>
     ${keys.map(k=>`<tr><td style="text-transform:capitalize">${dayName(new Date(k+'T00:00:00'))}</td>
       <td style="white-space:normal">${byDay[k].why.length?esc(byDay[k].why.join(' ; ')):'<span style="color:var(--mute)">—</span>'}</td>
-      <td class="down"><b>${fmt(byDay[k].t)}</b></td><td>${fmt(byDay[k].t*AR_MULT)}</td></tr>`).join('')}
-    <tfoot><tr><td>Total semaine</td><td></td><td class="down">${fmt(sw)}</td><td>${fmt(sw*AR_MULT)}</td></tr></tfoot></table>`
+      <td class="down"><b>${fmt(byDay[k].t)}</b></td>${arTd(byDay[k].t)}</tr>`).join('')}
+    <tfoot><tr><td>Total semaine</td><td></td><td class="down">${fmt(sw)}</td>${arTd(sw)}</tr></tfoot></table>`
   :'<p class="hint" style="margin:0">Aucune sanction sur la semaine affichée.</p>'}</div>`;
 }
 
@@ -1068,11 +1072,11 @@ function bonCard(vu){
   const own=vu.id===me.id;
   return `<div class="card"><h2>${own?'Mes bonus':'Bonus — '+esc(vu.full_name||vu.email)}</h2>
   <p class="hint">Bonus de la semaine affichée, regroupés par date. Ils sont ajoutés à la commission${own?' de la semaine':''}.</p>
-  ${keys.length?`<table data-nf><tr><th>Date</th><th>Motif</th><th>Total du jour</th><th>Total (Ar)</th></tr>
+  ${keys.length?`<table data-nf><tr><th>Date</th><th>Motif</th><th>Total du jour</th>${arTh()}</tr>
     ${keys.map(k=>`<tr><td style="text-transform:capitalize">${dayName(new Date(k+'T00:00:00'))}</td>
       <td style="white-space:normal">${byDay[k].why.length?esc(byDay[k].why.join(' ; ')):'<span style="color:var(--mute)">—</span>'}</td>
-      <td class="up"><b>+ ${fmt(byDay[k].t)}</b></td><td>${fmt(byDay[k].t*AR_MULT)}</td></tr>`).join('')}
-    <tfoot><tr><td>Total semaine</td><td></td><td class="up">+ ${fmt(bw)}</td><td>${fmt(bw*AR_MULT)}</td></tr></tfoot></table>`
+      <td class="up"><b>+ ${fmt(byDay[k].t)}</b></td>${arTd(byDay[k].t)}</tr>`).join('')}
+    <tfoot><tr><td>Total semaine</td><td></td><td class="up">+ ${fmt(bw)}</td>${arTd(bw)}</tr></tfoot></table>`
   :'<p class="hint" style="margin:0">Aucun bonus sur la semaine affichée.</p>'}</div>`;
 }
 
@@ -1092,8 +1096,8 @@ function agentGuide(vu,ca){
     <li>En bas de la page, renseignez votre <b>mode de paiement</b> (Mobile Money ou crypto) pour recevoir votre commission.</li>
   </ol>
   <div class="gs">
-    <span class="gn">Commission nette : <b>${fmt(net)} €</b></span>
-    <span class="ga">En Ar : <b>${fmt(net*AR_MULT)} Ar</b></span>
+    <span class="gn">Commission nette : <b>${fmt(net)} ${AGCRYPTO?'USDT':'€'}</b></span>
+    ${AGCRYPTO?'':`<span class="ga">En Ar : <b>${fmt(net*AR_MULT)} Ar</b></span>`}
     ${BON_OK?`<span class="gb">Bonus : <b>+ ${fmt(bw)}</b></span>`:''}
     ${SAN_OK?`<span class="gx">Sanctions : <b>− ${fmt(sw)}</b></span>`:''}
   </div></details>`;
@@ -1312,6 +1316,7 @@ async function show(){
 
   const mmRes=await P_mm;
   const mmAll=admin?(mmRes||[]):[];
+  AGCRYPTO=!admin&&!!mmRes&&isCrypto(mmRes.operator);
   const mmOne=admin?((mmRes||[]).find(x=>x.userId===vu.id)||null):mmRes;
   const mmBy={};
   (mmAll||[]).forEach(m=>{mmBy[m.userId]=m;});
