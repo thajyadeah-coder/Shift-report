@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 48 48'%3E%3Crect width='48' height='48' rx='13' fill='%231f6f5c'/%3E%3Cg fill='none' stroke='%23fff' stroke-width='4.2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M20.5 15.5C18.5 11 11 12 11.5 18C12 23.5 22 22.5 22 29.5C22 36 13.5 36.5 10.5 32'/%3E%3Cpath d='M27.5 36.5V11.5H33C39.5 11.5 39.5 23.5 33 23.5H27.5M32.5 23.5L40.5 36.5'/%3E%3Cpath d='M19.5 9.5H25.5V15.5M25.5 9.5L20.5 14.5' stroke='%23ffe27a' stroke-width='3.2'/%3E%3C/g%3E%3C/svg%3E">
 <title>Shift Report — Suivi des ventes et commissions</title>
 <style>
 :root{--bg:#eef1f4;--ink:#1b2430;--mute:#5d6b7a;--line:#d3dae1;--acc:#1f6f5c;--acc2:#6fd3b9;--card:#fff;--err:#b3261e;--warn:#c77700}
@@ -175,6 +176,8 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
  .side button{width:auto;white-space:nowrap;border-left:0;border-bottom:3px solid transparent}
  .side button.on{border-bottom-color:var(--acc)}
 }
+.logo{background:none!important;box-shadow:none!important;width:40px;height:40px;padding:0;display:block}
+.logo svg{width:100%;height:100%;display:block;filter:drop-shadow(0 3px 6px color-mix(in srgb,var(--acc) 35%,transparent))}
 /* Pied de page / copyright */
 .cp{max-width:1360px;margin:8px auto 0;padding:18px 16px 26px;text-align:center;color:var(--mute);font-size:12.5px;border-top:1px solid var(--line)}
 .cp a{color:var(--acc);text-decoration:none;font-weight:600}.cp a:hover{text-decoration:underline}
@@ -183,6 +186,7 @@ table tr:hover td{background:color-mix(in srgb,var(--acc) 5%,transparent)}
 .cx{display:inline-block;border-radius:10px;padding:4px 11px;font-weight:650;font-size:13px;font-style:normal;white-space:nowrap;font-variant-numeric:tabular-nums}
 .cx.e{background:color-mix(in srgb,var(--acc) 15%,transparent);color:var(--acc)}
 .cx.a{background:color-mix(in srgb,var(--warn) 17%,transparent);color:var(--warn)}
+.cx.big{font-size:17px;padding:6px 14px;border-radius:12px}
 .tiles .cxs{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
 .hb2{display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin:11px 0}
 .hb2 .n{min-width:48px;font-size:14px}
@@ -234,11 +238,15 @@ header{backdrop-filter:none;-webkit-backdrop-filter:none;background:var(--card)}
 </head>
 <body>
 <main id="app"></main>
+<footer class="cp">© <span id="cp_y">2026</span> <b>Thajy Adeah</b> · Tous droits réservés · <a href="mailto:thajyaddeah10@gmail.com">thajyaddeah10@gmail.com</a></footer>
+<script>document.getElementById("cp_y").textContent=new Date().getFullYear();</script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
 // ===== Configuration =====
 const SUPABASE_URL = 'https://gnhvvhjnfsetopbekqcp.supabase.co';
 const SUPABASE_KEY = 'sb_publishable_TTbtSYdZF5PXJIAZiwsAkQ_3CcoAzIw';
+// Logo : barres ascendantes + courbe de progression (couleur = couleur du thème)
+const LOGO = '<svg viewBox="0 0 48 48" aria-hidden="true"><rect width="48" height="48" rx="13" style="fill:var(--acc)"/><path d="M0 13Q0 0 13 0H35Q48 0 48 13V20Q24 30 0 20Z" fill="#fff" opacity=".13"/><g fill="none" stroke="#fff" stroke-width="4.2" stroke-linecap="round" stroke-linejoin="round"><path d="M20.5 15.5C18.5 11 11 12 11.5 18C12 23.5 22 22.5 22 29.5C22 36 13.5 36.5 10.5 32"/><path d="M27.5 36.5V11.5H33C39.5 11.5 39.5 23.5 33 23.5H27.5M32.5 23.5L40.5 36.5"/><path d="M19.5 9.5H25.5V15.5M25.5 9.5L20.5 14.5" stroke="#ffe27a" stroke-width="3.2"/></g></svg>';
 let AR_MULT = 3900; // cours d'échange : 1 € = AR_MULT Ar (modifiable par l'admin, enregistré dans Supabase)
 let FX_OK = true, FX_AT = '', fxNote = '';
 const CRYPTO_RATE = 1; // 1 unité de commission = 1 USDT (à adapter si besoin)
@@ -459,7 +467,7 @@ async function noteCred(b){
 }
 function recoveryView(){
   recovering=true;
-  $('app').innerHTML=`<div class="card auth"><div class="brand" style="margin-bottom:12px"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
+  $('app').innerHTML=`<div class="card auth"><div class="brand" style="margin-bottom:12px"><span class="logo">${LOGO}</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <p style="color:var(--mute)">Choisissez votre nouveau mot de passe.</p>
   <input id="np" type="password" placeholder="Nouveau mot de passe (6 caractères minimum)" autocomplete="new-password">
   <input id="np2" type="password" placeholder="Confirmez le mot de passe" autocomplete="new-password">
@@ -662,7 +670,7 @@ let me = null, viewId = null, tab = null, weekStart = monday(new Date()), days =
 async function authView(msg, mode){
   const {data:has} = await sb.rpc('has_users');
   const first = has === false, reg = first || mode === 'signup';
-  $('app').innerHTML = `<div class="card auth"><div class="brand" style="margin-bottom:12px"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
+  $('app').innerHTML = `<div class="card auth"><div class="brand" style="margin-bottom:12px"><span class="logo">${LOGO}</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <p style="color:var(--mute)">${first?'Première utilisation : créez le compte administrateur.':reg?'Créez votre compte agent. Votre administrateur définira ensuite votre taux de commission.':'Connectez-vous pour accéder à votre espace.'}</p>
   ${reg?'<input id="nm" placeholder="Nom complet" autocomplete="name">':''}
   <input id="em" type="email" placeholder="Adresse email" autocomplete="username">
@@ -688,7 +696,7 @@ async function signup(){
   if(data.user && data.user.identities && data.user.identities.length===0)
     return am.textContent = 'Cette adresse email est déjà utilisée. Veuillez vous connecter.';
   if(!data.session) authView('<span class="ok">Compte créé. Confirmez votre adresse email via le lien reçu, puis connectez-vous.</span>','login');
-  else { await sb.from('profiles').update({commission:0.08}).eq('id',data.user.id); start(); }
+  else start();
 }
 
 async function logout(){
@@ -940,7 +948,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
   const m=mm||{};
   return `<div class="card"><div class="row" style="justify-content:space-between"><h2 style="margin:0">Tableau de bord — ${esc(vu.full_name||vu.email)}</h2>
   <select onchange="pick(this.value)" aria-label="Choisir un agent">${profiles.filter(p=>p.role!=='admin').map(p=>`<option value="${p.id}" ${p.id===vu.id?'selected':''}>${esc(p.full_name||p.email)}</option>`).join('')}</select></div>
-  <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Paiement : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}${m.number?' · <b>À verser : '+payAmt(m,co)+'</b>':''}</p></div>
+  <p class="hint" style="margin:8px 0 0">${badge(lastBy[vu.id])} · ${esc(vu.email)} · Paiement : ${m.number?esc([m.operator,m.number,m.holder].filter(Boolean).join(' · ')):'non renseigné'}${m.number?' · À verser : '+payBoxes(m,co):''}</p></div>
   <div class="card"><div class="row"><input id="ag_q" type="search" placeholder="Trouver un agent (nom ou email)…" aria-label="Rechercher un agent" value="${esc(AGQ)}" oninput="filterAgents(this.value)" onkeydown="if(event.key==='Enter')pickFirstAgent()" style="flex:1;min-width:220px;max-width:420px"><span id="ag_c" class="hint" style="margin:0"></span></div>
   <div class="nav" id="ag_list" style="margin:10px 0 0">${profiles.filter(p=>p.role!=='admin').sort((a,b)=>String(a.full_name||a.email).localeCompare(String(b.full_name||b.email),'fr')).map(p=>`<button type="button" class="${p.id===vu.id?'on':''}" data-id="${p.id}" data-n="${esc(nrm((p.full_name||'')+' '+(p.email||'')))}" onclick="pick('${p.id}')">${esc(p.full_name||p.email)}</button>`).join('')}</div></div>
   <div class="tiles">
@@ -974,7 +982,7 @@ function sanCard(vu,ca,tiles){
   return `<div class="card"><h2>${own?'Mes sanctions':'Sanctions — '+esc(vu.full_name||vu.email)}</h2>
   <p class="hint">Sanctions de la semaine affichée, regroupées par date. Le montant total des sanctions est déduit de la commission${own?' de la semaine':''}.</p>
   ${tiles?`<div class="tiles">
-    <div class="k"><span>Commission brute</span><b>${fmt(brute)}</b></div>
+    <div class="k"><span>Commission brute (${fmt(ca)} × ${pct(vu.commission)})</span><b>${fmt(brute)}</b></div>
     ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     <div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>
     <div class="k"><span>Commission nette</span><b>${fmt(net)}</b><span>${fmt(net*AR_MULT)} Ar</span></div>
@@ -1226,6 +1234,8 @@ async function delBonus(b){
 }
 
 // Montant à verser selon le mode de paiement : USDT pour la crypto, Ariary pour le Mobile Money
+// Deux cases séparées : valeur en € et valeur dans la monnaie de paiement (Ar pour Mobile Money, USDT pour la crypto)
+const payBoxes = (m,net,big) => `<span class="cxs" style="display:inline-flex;gap:6px;flex-wrap:wrap;vertical-align:middle"><em class="cx e${big?' big':''}">${fmt(net)} €</em><em class="cx a${big?' big':''}">${m&&isCrypto(m.operator)?fmt(net*CRYPTO_RATE)+' USDT':fmt(net*AR_MULT)+' Ar'}</em></span>`;
 const payAmt = (m,net) => m && isCrypto(m.operator) ? fmt(net*CRYPTO_RATE)+' USDT' : fmt(net*AR_MULT)+' Ar';
 
 async function show(){
@@ -1350,14 +1360,14 @@ async function show(){
       const m=mmBy[p.id];
       return `<tr><td><a href="#" onclick="pick('${p.id}');return false">${esc(p.full_name||'(sans nom)')}</a></td><td>${esc(p.email)}</td><td>${badge(lastBy[p.id])}</td>
       <td>${m&&m.number?(isCrypto(m.operator)?'<span class="bd">Crypto</span> ':'')+esc(m.number.length>22?m.number.slice(0,10)+'…'+m.number.slice(-6):m.number)+`<small>${esc([m.operator,m.holder].filter(Boolean).join(' · '))}</small>`:'<span style="color:var(--mute)">Non renseigné</span>'}</td>
-      <td><b>${m&&m.number?payAmt(m,netOf(p)):'—'}</b></td>
+      <td>${m&&m.number?payBoxes(m,netOf(p)):'—'}</td>
       <td><b>${pct(p.commission)}</b> <a href="#" onclick="pick('${p.id}');return false" title="Le taux se modifie dans la fiche agent">Modifier</a></td>
       <td><select ${p.id===me.id?'disabled title="Vous ne pouvez pas modifier votre propre rôle"':''} onchange="upd('${p.id}',{role:this.value})">
       <option value="agent" ${p.role==='agent'?'selected':''}>agent</option><option value="admin" ${p.role==='admin'?'selected':''}>admin</option></select></td></tr>`;
     }).join('')}</table>
     <h2 style="margin-top:18px">Ajouter un agent</h2><div class="row">
       <input id="ng_nm" placeholder="Nom complet"><input id="ng_em" type="email" placeholder="Adresse email"><input id="ng_pw" type="text" placeholder="Mot de passe (6 caractères min.)">
-      <select id="ng_tx" title="Taux de commission" aria-label="Taux de commission">${rateOpts(8)}</select><button class="p" onclick="createAgent()">Créer le compte</button></div>
+      <select id="ng_tx" title="Taux de commission" aria-label="Taux de commission">${rateOpts(5)}</select><button class="p" onclick="createAgent()">Créer le compte</button></div>
     <div id="ng_msg" class="ok">${esc(notice)}</div></div>`;
     notice='';
   }
@@ -1453,7 +1463,7 @@ async function show(){
   ${agentCharts(vu,hist)}${sanCard(vu,caW,true)}${bonCard(vu)}${statsCard(vu,hist,hStart)}${mmCard(vu,mmOne,netW)}`;
 
   lastRefresh=new Date();
-  $('app').innerHTML=`<header><div class="brand"><span class="logo">SR</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
+  $('app').innerHTML=`<header><div class="brand"><span class="logo">${LOGO}</span><div><h1>Shift Report</h1><small>Suivi des ventes et des commissions</small></div></div>
   <div class="row"><div class="ctl"><button type="button" onclick="toggleDark(this)" title="Mode clair / sombre" aria-label="Mode clair ou sombre">${isDark()?'Mode clair':'Mode sombre'}</button><select onchange="setAccent(this.value)" title="Couleur du thème" aria-label="Couleur du thème">${Object.entries(ACCENTS).map(([k,v])=>`<option value="${k}" ${UI.accent===k?'selected':''}>${v}</option>`).join('')}</select></div><span>${esc(me.full_name||me.email)} · ${me.role}</span><button onclick="logout()">Déconnexion</button></div></header>
   ${admin?`<div class="shell">${side}<div class="content">${head}<div id="adm">${weekBar}${dash}${agent}${report}${goalsTab}${perf}${comm}${sanTab}${bonTab}${team}${access}</div></div></div>`:`<div id="adm">${weekBar}${report}</div>`}`;
   animateNums(t+'|'+from+'|'+viewId);
@@ -1609,7 +1619,7 @@ function mmCard(vu,m,net){
   <p class="hint">Choisissez comment recevoir votre commission : Mobile Money (numéro) ou Crypto (adresse de portefeuille). Pour la crypto, vérifiez bien le réseau et l'adresse : un envoi à une mauvaise adresse est irréversible.</p>
   <div class="tiles" style="margin-bottom:10px">
     <div class="k"><span>Commission nette de la semaine</span><b>${fmt(net)}</b></div>
-    <div class="k"><span>Montant à recevoir${m.operator?' · '+esc(m.operator):''}</span><b>${m.number?payAmt(m,net):'—'}</b><span>${m.number?(cr?'1 € = '+CRYPTO_RATE+' USDT':'1 € = '+fmt(AR_MULT)+' Ar'):'Renseignez un mode de paiement'}</span></div>
+    <div class="k"><span>Montant à recevoir${m.operator?' · '+esc(m.operator):''}</span>${m.number?`<span class="cxs">${payBoxes(m,net,true)}</span>`:'<b>—</b>'}<span>${m.number?(cr?'1 € = '+CRYPTO_RATE+' USDT':'1 € = '+fmt(AR_MULT)+' Ar'):'Renseignez un mode de paiement'}</span></div>
   </div>
   <div class="row" style="align-items:flex-end">
     <label>Mode de paiement<select id="mm_op"><option value="">— Choisir —</option>${ops.map(o=>`<option ${o===m.operator?'selected':''}>${esc(o)}</option>`).join('')}</select></label>
@@ -1687,7 +1697,7 @@ async function upd(id,patch){
 
 async function createAgent(){
   const nm=$('ng_nm').value.trim(), em=$('ng_em').value.trim(), pw=$('ng_pw').value;
-  const tx=(+$('ng_tx').value||8)/100, m=$('ng_msg');
+  const tx=(+$('ng_tx').value||5)/100, m=$('ng_msg');
   m.className='msg';
   if(!(tx>=0&&tx<=1)){
     m.textContent='Le taux doit être un pourcentage compris entre 0 et 100.';
