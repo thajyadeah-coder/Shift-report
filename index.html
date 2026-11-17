@@ -954,7 +954,7 @@ function agentView(vu,profiles,hist,hStart,mm,lastBy,net){
     ${BON_OK?`<div class="k"><span>Bonus de la semaine</span><b class="${bw>0?'up':''}">+ ${fmt(bw)}</b></div>`:''}
     ${SAN_OK?`<div class="s"><span>Sanctions de la semaine</span><b class="${sw>0?'down':''}">− ${fmt(sw)}</b></div>`:''}
     <div class="k"><span>Commission nette</span><b>${fmt(co)}</b></div>
-    <div class="k"><span>Commission nette (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>
+    ${AGCRYPTO?'':`<div class="k"><span>Commission nette (Ar)</span><b>${fmt(co*AR_MULT)}</b></div>`}
   </div>
   ${agentCharts(vu,hist)}`;
 }
@@ -1316,8 +1316,8 @@ async function show(){
 
   const mmRes=await P_mm;
   const mmAll=admin?(mmRes||[]):[];
-  AGCRYPTO=!admin&&!!mmRes&&isCrypto(mmRes.operator);
   const mmOne=admin?((mmRes||[]).find(x=>x.userId===vu.id)||null):mmRes;
+  AGCRYPTO=(!admin||t==='agent')&&!!mmOne&&isCrypto(mmOne.operator);
   const mmBy={};
   (mmAll||[]).forEach(m=>{mmBy[m.userId]=m;});
 
@@ -1601,7 +1601,7 @@ function statsCard(vu,rows,hStart){
     <div><span>Évolution hebdomadaire</span><b class="${evoCls(evo)}">${evoTxt(evo)}</b></div>
     <div><span>Meilleure journée</span><b>${best&&best.ca>0?fmt(best.ca):'—'}</b>${best&&best.ca>0?`<span>${dayShort(new Date(best.day+'T00:00:00'))}</span>`:''}</div>
     <div><span>Jours d'activité</span><b>${worked}</b></div>
-    ${me.role==='admin'?`<div><span>Commission estimée${SAN_OK?' (nette)':''}</span><b>${fmt(co)}</b><span>${fmt(co*AR_MULT)} Ar</span></div>`:''}
+    ${me.role==='admin'?`<div><span>Commission estimée${SAN_OK?' (nette)':''}</span><b>${fmt(co)}</b>${AGCRYPTO?'':`<span>${fmt(co*AR_MULT)} Ar</span>`}</div>`:''}
   </div>${lineChart(weekItems(weeks),'CA par semaine sur '+STAT_WEEKS+' semaines')}</div>`;
 }
 
